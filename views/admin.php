@@ -336,7 +336,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['edit_user'])) {
 <body>
 <div class="sidebar">
     <div class="nav-section">
-        <div class="nav-item active" id="dashboardBtn">
+        <div class="nav-item" id="dashboardBtn">
             <i class="fa-solid fa-map"></i>
             Dashboard
         </div>
@@ -454,32 +454,37 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['edit_user'])) {
         </form>
     </div>
 
-    <div id="employeeListContainer" style="display:block;">
+    <div id="employeeListContainer" style="display:<?php echo $show_employee_list ? 'block' : 'none'; ?>;">
         <h3>User Management</h3>
         <div id="userActionMsg"><?php echo $user_action_msg ?? ''; ?></div>
-        <div class="filter-section d-flex justify-content-between align-items-center mb-3">
-            <input type="text" id="search" placeholder="Search by name or email..." class="form-control mr-2" style="max-width: 300px;">
-            <select id="filterRole" class="form-control mr-2" style="max-width: 200px;">
-                <option value="">All Roles</option>
-                <?php foreach ($roles as $role): ?>
-                    <option value="<?php echo htmlspecialchars($role['role_id']); ?>"><?php echo htmlspecialchars($role['name']); ?></option>
-                <?php endforeach; ?>
-            </select>
-            <select id="filterDepartment" class="form-control mr-2" style="max-width: 200px;">
-                <option value="">All Departments</option>
-                <?php foreach ($departments as $department): ?>
-                    <option value="<?php echo htmlspecialchars($department['department_id']); ?>"><?php echo htmlspecialchars($department['name']); ?></option>
-                <?php endforeach; ?>
-            </select>
-            <select id="filterJobRole" class="form-control mr-2" style="max-width: 200px;">
-                <option value="">All Job Titles</option>
-                <?php foreach ($job_roles as $job_role): ?>
-                    <option value="<?php echo htmlspecialchars($job_role['job_role_id']); ?>"><?php echo htmlspecialchars($job_role['title']); ?></option>
-                <?php endforeach; ?>
-            </select>
-            <button id="resetFilters" class="btn btn-secondary" style="max-width: 50px;">
-                <i class="fas fa-sync-alt"></i>
-            </button>
+        <div class="filter-section d-flex align-items-center mb-3 justify-content-between">
+            <div class="d-flex align-items-center">
+                <input type="text" id="search" placeholder="Search by name or email..." class="form-control" style="max-width: 300px; margin-right: 0;">
+                <button id="applySearch" class="btn btn-primary" style="max-width: 100px; margin-left: 0;">Search</button>
+            </div>
+            <div class="d-flex align-items-center">
+                <select id="filterRole" class="form-control" style="max-width: 200px; margin-left: 0;">
+                    <option value="">All Roles</option>
+                    <?php foreach ($roles as $role): ?>
+                        <option value="<?php echo htmlspecialchars($role['role_id']); ?>"><?php echo htmlspecialchars($role['name']); ?></option>
+                    <?php endforeach; ?>
+                </select>
+                <select id="filterDepartment" class="form-control" style="max-width: 200px; margin-left: 0;">
+                    <option value="">All Departments</option>
+                    <?php foreach ($departments as $department): ?>
+                        <option value="<?php echo htmlspecialchars($department['department_id']); ?>"><?php echo htmlspecialchars($department['name']); ?></option>
+                    <?php endforeach; ?>
+                </select>
+                <select id="filterJobRole" class="form-control" style="max-width: 200px; margin-left: 0;">
+                    <option value="">All Job Titles</option>
+                    <?php foreach ($job_roles as $job_role): ?>
+                        <option value="<?php echo htmlspecialchars($job_role['job_role_id']); ?>"><?php echo htmlspecialchars($job_role['title']); ?></option>
+                    <?php endforeach; ?>
+                </select>
+                <button id="resetFilters" class="btn btn-secondary" style="max-width: 50px; margin-left: 0;">
+                    <i class="fas fa-sync-alt"></i>
+                </button>
+            </div>
         </div>
         <table class="table table-striped">
             <thead>
@@ -514,10 +519,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['edit_user'])) {
                               LEFT JOIN job_role jr ON ua.job_role_id = jr.job_role_id
                               WHERE (ua.full_name LIKE '%$search%' OR ua.email LIKE '%$search%')";
 
-                // Brute force solution: Always include filters even if they are empty
-                $userQuery .= " AND (ua.role_id = '$filterRole' OR '$filterRole' = '')";
-                $userQuery .= " AND (ua.department_id = '$filterDepartment' OR '$filterDepartment' = '')";
-                $userQuery .= " AND (ua.job_role_id = '$filterJobRole' OR '$filterJobRole' = '')";
+                // Ensure filters are applied correctly
+                if ($filterRole !== '') {
+                    $userQuery .= " AND ua.role_id = '$filterRole'";
+                }
+                if ($filterDepartment !== '') {
+                    $userQuery .= " AND ua.department_id = '$filterDepartment'";
+                }
+                if ($filterJobRole !== '') {
+                    $userQuery .= " AND ua.job_role_id = '$filterJobRole'";
+                }
 
                 $userQuery .= " LIMIT $limit OFFSET $offset";
                 $userResult = mysqli_query($conn, $userQuery);
@@ -552,9 +563,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['edit_user'])) {
                 }
 
                 $totalQuery = "SELECT COUNT(*) as total FROM user_account WHERE (full_name LIKE '%$search%' OR email LIKE '%$search%')";
-                $totalQuery .= " AND (role_id = '$filterRole' OR '$filterRole' = '')";
-                $totalQuery .= " AND (department_id = '$filterDepartment' OR '$filterDepartment' = '')";
-                $totalQuery .= " AND (job_role_id = '$filterJobRole' OR '$filterJobRole' = '')";
+                if ($filterRole !== '') {
+                    $totalQuery .= " AND role_id = '$filterRole'";
+                }
+                if ($filterDepartment !== '') {
+                    $totalQuery .= " AND department_id = '$filterDepartment'";
+                }
+                if ($filterJobRole !== '') {
+                    $totalQuery .= " AND job_role_id = '$filterJobRole'";
+                }
                 $totalResult = mysqli_query($conn, $totalQuery);
                 $totalRow = mysqli_fetch_assoc($totalResult);
                 $totalPages = ceil($totalRow['total'] / $limit);
@@ -615,6 +632,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['edit_user'])) {
 
         // Filter and search functionality
         const searchInput = document.getElementById('search');
+        const applySearchButton = document.getElementById('applySearch');
         const filterRoleSelect = document.getElementById('filterRole');
         const filterDepartmentSelect = document.getElementById('filterDepartment');
         const filterJobRoleSelect = document.getElementById('filterJobRole');
@@ -644,11 +662,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['edit_user'])) {
             applyFilters();
         }
 
-        searchInput.addEventListener('input', applyFilters);
+        applySearchButton.addEventListener('click', applyFilters);
         filterRoleSelect.addEventListener('change', applyFilters);
         filterDepartmentSelect.addEventListener('change', applyFilters);
         filterJobRoleSelect.addEventListener('change', applyFilters);
         resetFiltersButton.addEventListener('click', resetFilters);
+
+        // Ensure employee list is shown after actions
+        if (<?php echo json_encode(isset($_POST['delete_user']) || isset($_POST['edit_user'])); ?>) {
+            employeeListContainer.style.display = 'block';
+            createAccountFormContainer.style.display = 'none';
+            changePasswordFormContainer.style.display = 'none';
+            dashboardContent.style.display = 'none';
+        }
     </script>
 
     <!-- Modal for Edit/Change Password -->
@@ -777,21 +803,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['edit_user'])) {
     if (<?php echo json_encode($create_account_success); ?>) {
         removeMessageAfterDelay('createAccountMsg');
         createAccountFormContainer.style.display = 'block';
-        dashboardContent.style.display = 'none';
+        employeeListContainer.style.display = 'none';
     }
 
     if (<?php echo json_encode($change_password_success); ?>) {
         removeMessageAfterDelay('changePasswordMsg');
         changePasswordFormContainer.style.display = 'block';
-        dashboardContent.style.display = 'none';
+        employeeListContainer.style.display = 'none';
     }
 
     // Show Employee List on button click
     employeeBtn.addEventListener('click', function() {
         employeeListContainer.style.display = 'block';
         createAccountFormContainer.style.display = 'none';
-        dashboardContent.style.display = 'none';
         changePasswordFormContainer.style.display = 'none';
+        dashboardContent.style.display = 'none';
     });
 </script>
 </body>
