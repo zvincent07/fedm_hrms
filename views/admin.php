@@ -378,9 +378,201 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['edit_user'])) {
 </div>
 <div class="main-content" id="mainContentArea">
 
+    <?php
+    // Fetch data from the database
+    $attendance_summary = [];
+    $leave_requests = [];
+    $resignations = [];
+    $admin_notices = [];
+    $employees_overview = [];
+    $activity_logs = [];
+    $new_employees_this_month = 0;
+    $total_employees = 0;
+
+    // Fetch attendance summary
+    $attendance_query = "SELECT status, COUNT(*) as count FROM attendance WHERE date = CURDATE() GROUP BY status";
+    $attendance_result = mysqli_query($conn, $attendance_query);
+    if ($attendance_result) {
+        while ($row = mysqli_fetch_assoc($attendance_result)) {
+            $attendance_summary[$row['status']] = $row['count'];
+        }
+    }
+
+    // Fetch leave requests
+    $leave_query = "SELECT status, COUNT(*) as count FROM leave_request WHERE start_date <= CURDATE() AND end_date >= CURDATE() GROUP BY status";
+    $leave_result = mysqli_query($conn, $leave_query);
+    if ($leave_result) {
+        while ($row = mysqli_fetch_assoc($leave_result)) {
+            $leave_requests[$row['status']] = $row['count'];
+        }
+    }
+
+    // Fetch resignations
+    $resignation_query = "SELECT status, COUNT(*) as count FROM resignation GROUP BY status";
+    $resignation_result = mysqli_query($conn, $resignation_query);
+    if ($resignation_result) {
+        while ($row = mysqli_fetch_assoc($resignation_result)) {
+            $resignations[$row['status']] = $row['count'];
+        }
+    }
+
+    // Fetch admin notices
+    $notice_query = "SELECT title, message FROM admin_notice ORDER BY created_at DESC LIMIT 5";
+    $notice_result = mysqli_query($conn, $notice_query);
+    if ($notice_result) {
+        while ($row = mysqli_fetch_assoc($notice_result)) {
+            $admin_notices[] = $row;
+        }
+    }
+
+    // Fetch employees overview
+    $employees_query = "SELECT department.name as department, COUNT(user_account.user_id) as count FROM user_account 
+                        JOIN department ON user_account.department_id = department.department_id 
+                        WHERE role_id = (SELECT role_id FROM role WHERE name = 'Employee')
+                        GROUP BY department.name";
+    $employees_result = mysqli_query($conn, $employees_query);
+    if ($employees_result) {
+        while ($row = mysqli_fetch_assoc($employees_result)) {
+            $employees_overview[] = $row;
+        }
+    }
+
+    // Fetch new employees this month excluding Admins
+    $new_employees_query = "SELECT COUNT(user_id) as count FROM user_account 
+                            WHERE MONTH(created_at) = MONTH(CURDATE()) 
+                            AND YEAR(created_at) = YEAR(CURDATE()) 
+                            AND role_id != (SELECT role_id FROM role WHERE name = 'Admin')";
+    $new_employees_result = mysqli_query($conn, $new_employees_query);
+    if ($new_employees_result) {
+        $row = mysqli_fetch_assoc($new_employees_result);
+        $new_employees_this_month = $row['count'];
+    }
+
+    // Fetch total employees excluding Admins
+    $total_employees_query = "SELECT COUNT(user_id) as count FROM user_account 
+                              WHERE role_id = (SELECT role_id FROM role WHERE name = 'Employee')";
+    $total_employees_result = mysqli_query($conn, $total_employees_query);
+    if ($total_employees_result) {
+        $row = mysqli_fetch_assoc($total_employees_result);
+        $total_employees = $row['count'];
+    }
+
+    // Fetch activity logs
+    $activity_query = "SELECT module, action, created_at FROM activity_log ORDER BY created_at DESC LIMIT 5";
+    $activity_result = mysqli_query($conn, $activity_query);
+    if ($activity_result) {
+        while ($row = mysqli_fetch_assoc($activity_result)) {
+            $activity_logs[] = $row;
+        }
+    }
+    ?>
+
     <div id="dashboardContent" style="display:none;">
-        <h3>Welcome to the Dashboard</h3>
-        <p>This is the default view when the admin panel loads.</p>
+        <h3 class="dashboard-title">Welcome to the Dashboard</h3>
+        <div class="container mt-4">
+            <div class="row">
+                <!-- Attendance Monitoring -->
+                <div class="col-md-6">
+                    <div class="card shadow-sm mb-4">
+                        <div class="card-header bg-primary text-white">
+                            <h4>Attendance Monitoring</h4>
+                        </div>
+                        <div class="card-body">
+                            <canvas id="attendanceChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Leave Management -->
+                <div class="col-md-6">
+                    <div class="card shadow-sm mb-4">
+                        <div class="card-header bg-success text-white">
+                            <h4>Leave Management</h4>
+                        </div>
+                        <div class="card-body">
+                            <canvas id="leaveChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="row mt-4">
+                <!-- Resignations -->
+                <div class="col-md-6">
+                    <div class="card shadow-sm mb-4">
+                        <div class="card-header bg-danger text-white">
+                            <h4>Resignations</h4>
+                        </div>
+                        <div class="card-body">
+                            <canvas id="resignationChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Admin Notices -->
+                <div class="col-md-6">
+                    <div class="card shadow-sm mb-4">
+                        <div class="card-header bg-warning text-dark">
+                            <h4>Admin Notices</h4>
+                        </div>
+                        <div class="card-body">
+                            <ul class="list-group">
+                                <?php if (empty($admin_notices)): ?>
+                                    <li class="list-group-item">No notices available</li>
+                                <?php else: ?>
+                                    <?php foreach ($admin_notices as $notice): ?>
+                                        <li class="list-group-item"><?= htmlspecialchars($notice['title']) ?>: <?= htmlspecialchars($notice['message']) ?></li>
+                                    <?php endforeach; ?>
+                                <?php endif; ?>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="row mt-4">
+                <!-- Employees Overview -->
+                <div class="col-md-6">
+                    <div class="card shadow-sm mb-4">
+                        <div class="card-header bg-info text-white">
+                            <h4>Employees Overview</h4>
+                        </div>
+                        <div class="card-body">
+                            <p class="mt-3">Total Employees: <?= $total_employees ?></p>
+                            <ul class="list-group mt-3">
+                                <?php if (empty($employees_overview)): ?>
+                                    <li class="list-group-item">No data available</li>
+                                <?php else: ?>
+                                    <?php foreach ($employees_overview as $overview): ?>
+                                        <li class="list-group-item"><?= htmlspecialchars($overview['department']) ?>: <?= htmlspecialchars($overview['count']) ?></li>
+                                    <?php endforeach; ?>
+                                <?php endif; ?>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Activity Logs -->
+                <div class="col-md-6">
+                    <div class="card shadow-sm mb-4">
+                        <div class="card-header bg-secondary text-white">
+                            <h4>Activity Logs</h4>
+                        </div>
+                        <div class="card-body">
+                            <ul class="list-group">
+                                <?php if (empty($activity_logs)): ?>
+                                    <li class="list-group-item">No activity logs available</li>
+                                <?php else: ?>
+                                    <?php foreach ($activity_logs as $log): ?>
+                                        <li class="list-group-item"><?= htmlspecialchars($log['module']) ?> - <?= htmlspecialchars($log['action']) ?> at <?= $log['created_at'] ?></li>
+                                    <?php endforeach; ?>
+                                <?php endif; ?>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
     </div>
 
     <div id="createAccountFormContainer" style="display:none;">
@@ -454,7 +646,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['edit_user'])) {
         </form>
     </div>
 
-    <div id="employeeListContainer" style="display:<?php echo $show_employee_list ? 'block' : 'none'; ?>;">
+    <div id="employeeListContainer" style="display:none;">
         <h3>User Management</h3>
         <div id="userActionMsg"><?php echo $user_action_msg ?? ''; ?></div>
         <div class="filter-section d-flex align-items-center mb-3 justify-content-between">
@@ -668,8 +860,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['edit_user'])) {
         filterJobRoleSelect.addEventListener('change', applyFilters);
         resetFiltersButton.addEventListener('click', resetFilters);
 
-        // Ensure employee list is shown after actions
+        // Ensure only the relevant container is shown after actions
         if (<?php echo json_encode(isset($_POST['delete_user']) || isset($_POST['edit_user'])); ?>) {
+            employeeListContainer.style.display = 'block';
+            createAccountFormContainer.style.display = 'none';
+            changePasswordFormContainer.style.display = 'none';
+            dashboardContent.style.display = 'none';
+        } else if (<?php echo json_encode(isset($_POST['create_account'])); ?>) {
+            createAccountFormContainer.style.display = 'block';
+            employeeListContainer.style.display = 'none';
+            changePasswordFormContainer.style.display = 'none';
+            dashboardContent.style.display = 'none';
+        } else if (<?php echo json_encode(isset($_POST['change_password'])); ?>) {
+            changePasswordFormContainer.style.display = 'block';
+            createAccountFormContainer.style.display = 'none';
+            employeeListContainer.style.display = 'none';
+            dashboardContent.style.display = 'none';
+        } else {
+            // Default to showing the employee list if no specific action is detected
             employeeListContainer.style.display = 'block';
             createAccountFormContainer.style.display = 'none';
             changePasswordFormContainer.style.display = 'none';
