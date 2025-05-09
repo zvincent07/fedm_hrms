@@ -674,9 +674,6 @@ $show = $_GET['show'] ?? 'dashboard';
                     <label for="jobRole">Job Title</label>
                     <select class="form-control" id="jobRole" name="job_role_id">
                         <option value="">Select Job Title</option>
-                        <?php foreach ($job_roles as $job_role): ?>
-                            <option value="<?php echo htmlspecialchars($job_role['job_role_id']); ?>"><?php echo htmlspecialchars($job_role['title']); ?></option>
-                        <?php endforeach; ?>
                     </select>
                 </div>
                 <button type="submit" class="btn btn-create" name="create_account">Create Account</button>
@@ -1036,6 +1033,70 @@ $show = $_GET['show'] ?? 'dashboard';
                 }
             });
         }
+    });
+
+    document.addEventListener('DOMContentLoaded', function() {
+        // --- CREATE ACCOUNT FORM ---
+        const departmentSelect = document.getElementById('department');
+        const jobRoleSelect = document.getElementById('jobRole');
+        if (departmentSelect && jobRoleSelect) {
+            departmentSelect.addEventListener('change', function() {
+                const departmentId = this.value;
+                jobRoleSelect.innerHTML = '<option value="">Select Job Title</option>';
+                if (departmentId) {
+                    fetch('get_job_roles.php?department_id=' + departmentId)
+                        .then(response => response.json())
+                        .then(data => {
+                            data.forEach(function(job) {
+                                const option = document.createElement('option');
+                                option.value = job.job_role_id;
+                                option.textContent = job.title;
+                                jobRoleSelect.appendChild(option);
+                            });
+                        });
+                }
+            });
+        }
+
+        // --- EDIT MODAL ---
+        const editDepartmentSelect = document.getElementById('editDepartment');
+        const editJobRoleSelect = document.getElementById('editJobRole');
+        // Helper to load job roles for a department and select a job role
+        function loadEditJobRoles(departmentId, selectedJobRoleId) {
+            editJobRoleSelect.innerHTML = '<option value="">Select Job Title</option>';
+            if (departmentId) {
+                fetch('get_job_roles.php?department_id=' + departmentId)
+                    .then(response => response.json())
+                    .then(data => {
+                        data.forEach(function(job) {
+                            const option = document.createElement('option');
+                            option.value = job.job_role_id;
+                            option.textContent = job.title;
+                            if (selectedJobRoleId && String(job.job_role_id) === String(selectedJobRoleId)) {
+                                option.selected = true;
+                            }
+                            editJobRoleSelect.appendChild(option);
+                        });
+                    });
+            }
+        }
+        // When department changes in the edit modal
+        if (editDepartmentSelect && editJobRoleSelect) {
+            editDepartmentSelect.addEventListener('change', function() {
+                loadEditJobRoles(this.value, null);
+            });
+        }
+        // When opening the modal, set the job roles for the current department and select the current job role
+        document.querySelectorAll('.edit-change-password-user').forEach(function(btn) {
+            btn.addEventListener('click', function() {
+                const departmentId = this.getAttribute('data-department-id');
+                const jobRoleId = this.getAttribute('data-job-role-id');
+                // Set the department dropdown value
+                if (editDepartmentSelect) editDepartmentSelect.value = departmentId;
+                // Load job roles and select the current one
+                loadEditJobRoles(departmentId, jobRoleId);
+            });
+        });
     });
 </script>
 
