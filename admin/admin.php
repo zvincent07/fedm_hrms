@@ -246,11 +246,11 @@ if ($activity_result) {
 
 <div class="sidebar">
     <div class="nav-section">
-        <div class="nav-item" id="dashboardBtn">
+        <div class="nav-item" id="dashboardBtn" onclick="showContent('dashboardContent')">
             <i class="fa-solid fa-map"></i>
             Dashboard
         </div>
-        <div class="nav-item" id="employeeBtn">
+        <div class="nav-item" id="employeeBtn" onclick="showContent('employeeListContainer'); toggleEmployeeSubMenu();">
             <i class="fa-solid fa-user"></i>
             Employee
             <i class="fa-solid fa-chevron-down" style="margin-left:auto;font-size:1rem;"></i>
@@ -260,19 +260,19 @@ if ($activity_result) {
             <div class="nav-sub-item" onclick="showContent('leaveContainer')">Leave</div>
             <div class="nav-sub-item" onclick="showContent('resignationContainer')">Resignation</div>
         </div>
-        <div class="nav-item">
+        <div class="nav-item" onclick="showContent('notificationContainer')">
             <i class="fa-solid fa-bell"></i>
             Notification
         </div>
-        <div class="nav-item">
+        <div class="nav-item" onclick="showContent('activityLogsContainer')">
             <i class="fa-regular fa-clock"></i>
             Activity Logs
         </div>
-        <div class="nav-item" id="createAccountBtn">
+        <div class="nav-item" id="createAccountBtn" onclick="showContent('createAccountFormContainer')">
             <i class="fa-solid fa-user-plus"></i>
             Create Account
         </div>
-        <div class="nav-item" id="changePasswordBtn">
+        <div class="nav-item" id="changePasswordBtn" onclick="showContent('changePasswordFormContainer')">
             <i class="fa-solid fa-key"></i>
             Change Password
         </div>
@@ -288,7 +288,7 @@ if ($activity_result) {
 </div>
 <div class="main-content" id="mainContentArea">
 
-    <div id="dashboardContent" style="display:none;">
+    <div id="dashboardContent" style="display: block;">
         <h3 class="dashboard-title">Welcome to the Dashboard</h3>
         <div class="container mt-4">
             <div class="row">
@@ -396,22 +396,32 @@ if ($activity_result) {
         </div>
     </div>
 
-    <div id="attendanceContainer" style="display:none;">
+    <div id="attendanceContainer" style="display: none;">
         <h3>Attendance</h3>
         <!-- Add content specific to Attendance here -->
     </div>
 
-    <div id="leaveContainer" style="display:none;">
+    <div id="leaveContainer" style="display: none;">
         <h3>Leave</h3>
         <!-- Add content specific to Leave here -->
     </div>
 
-    <div id="resignationContainer" style="display:none;">
+    <div id="resignationContainer" style="display: none;">
         <h3>Resignation</h3>
         <!-- Add content specific to Resignation here -->
     </div>
 
-    <div id="createAccountFormContainer" style="display:none;">
+    <div id="notificationContainer" style="display: none;">
+        <h3>Notifications</h3>
+        <!-- Add content specific to Notifications here -->
+    </div>
+
+    <div id="activityLogsContainer" style="display: none;">
+        <h3>Activity Logs</h3>
+        <!-- Add content specific to Activity Logs here -->
+    </div>
+
+    <div id="createAccountFormContainer" style="display: none;">
         <form class="create-account-form" id="createAccountForm" method="POST" autocomplete="off" action="?show=createAccount">
             <h3>Create Account</h3>
             <?php if ($create_account_msg): ?>
@@ -460,7 +470,7 @@ if ($activity_result) {
         </form>
     </div>
 
-    <div id="changePasswordFormContainer" style="display:none;">
+    <div id="changePasswordFormContainer" style="display: none;">
         <form class="change-password-form" id="changePasswordForm" method="POST" autocomplete="off" action="?show=changePassword">
             <h3>Change Password</h3>
             <?php if ($change_password_msg): ?>
@@ -482,7 +492,7 @@ if ($activity_result) {
         </form>
     </div>
 
-    <div id="employeeListContainer" style="display:block;">
+    <div id="employeeListContainer" style="display: none;">
         <h3>User Management</h3>
         <div id="userActionMsg"><?php echo $user_action_msg ?? ''; ?></div>
         <div class="filter-section d-flex align-items-center mb-3 justify-content-between">
@@ -689,13 +699,70 @@ if ($activity_result) {
 
 <script>
     function showContent(containerId) {
-        // Hide all containers
-        document.querySelectorAll('.main-content > div').forEach(container => {
-            container.style.display = 'none';
+        // Brute-force hide all relevant containers
+        const containers = [
+            'dashboardContent',
+            'attendanceContainer',
+            'leaveContainer',
+            'resignationContainer',
+            'notificationContainer',
+            'activityLogsContainer',
+            'createAccountFormContainer',
+            'changePasswordFormContainer',
+            'employeeListContainer'
+        ];
+        containers.forEach(id => {
+            const el = document.getElementById(id);
+            if (el) el.style.display = 'none';
         });
         // Show the selected container
-        document.getElementById(containerId).style.display = 'block';
+        const showEl = document.getElementById(containerId);
+        if (showEl) showEl.style.display = 'block';
     }
+
+    // Helper to get URL parameter
+    function getQueryParam(param) {
+        const urlParams = new URLSearchParams(window.location.search);
+        return urlParams.get(param);
+    }
+
+    // On page load, show the correct container based on ?show=...
+    document.addEventListener('DOMContentLoaded', function() {
+        const show = getQueryParam('show');
+        const containers = [
+            'dashboardContent',
+            'attendanceContainer',
+            'leaveContainer',
+            'resignationContainer',
+            'notificationContainer',
+            'activityLogsContainer',
+            'createAccountFormContainer',
+            'changePasswordFormContainer',
+            'employeeListContainer'
+        ];
+        containers.forEach(id => {
+            const el = document.getElementById(id);
+            if (el) el.style.display = 'none';
+        });
+
+        // Map ?show= values to container IDs
+        const showMap = {
+            'dashboard': 'dashboardContent',
+            'attendance': 'attendanceContainer',
+            'leave': 'leaveContainer',
+            'resignation': 'resignationContainer',
+            'notification': 'notificationContainer',
+            'activityLogs': 'activityLogsContainer',
+            'createAccount': 'createAccountFormContainer',
+            'changePassword': 'changePasswordFormContainer',
+            'employeeList': 'employeeListContainer'
+        };
+
+        // Default to dashboard if no ?show= param
+        const toShow = showMap[show] || 'dashboardContent';
+        const showEl = document.getElementById(toShow);
+        if (showEl) showEl.style.display = 'block';
+    });
 </script>
 
 <?php include 'adminFooter.php'; ?>
