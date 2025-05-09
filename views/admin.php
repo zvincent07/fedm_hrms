@@ -646,7 +646,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['edit_user'])) {
         </form>
     </div>
 
-    <div id="employeeListContainer" style="display:none;">
+    <div id="employeeListContainer" style="display:block;">
         <h3>User Management</h3>
         <div id="userActionMsg"><?php echo $user_action_msg ?? ''; ?></div>
         <div class="filter-section d-flex align-items-center mb-3 justify-content-between">
@@ -876,12 +876,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['edit_user'])) {
             createAccountFormContainer.style.display = 'none';
             employeeListContainer.style.display = 'none';
             dashboardContent.style.display = 'none';
-        } else {
-            // Default to showing the employee list if no specific action is detected
+        } else if (window.location.search.includes('search') || window.location.search.includes('filterRole') || window.location.search.includes('filterDepartment') || window.location.search.includes('filterJobRole')) {
+            // Show employee list if any filter or search is applied
             employeeListContainer.style.display = 'block';
             createAccountFormContainer.style.display = 'none';
             changePasswordFormContainer.style.display = 'none';
             dashboardContent.style.display = 'none';
+        } else {
+            // Default to showing the dashboard if no specific action is detected
+            dashboardContent.style.display = 'block';
+            createAccountFormContainer.style.display = 'none';
+            employeeListContainer.style.display = 'none';
+            changePasswordFormContainer.style.display = 'none';
         }
     </script>
 
