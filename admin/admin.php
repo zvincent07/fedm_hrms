@@ -2,13 +2,37 @@
 include '../config/db.php';
 session_start();
 
-// Handle logout
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['logout'])) {
-    session_unset();
-    session_destroy();
-    header('Location: ../index.php');
-    exit();
+// Helper function to log admin actions
+function log_activity($conn, $user_id, $module, $action, $target_type = null, $target_id = null, $details = null) {
+    $user_id = $user_id ? intval($user_id) : 'NULL';
+    $module = mysqli_real_escape_string($conn, $module);
+    $action = mysqli_real_escape_string($conn, $action);
+    $target_type = $target_type ? "'" . mysqli_real_escape_string($conn, $target_type) . "'" : "NULL";
+    $target_id = $target_id !== null ? intval($target_id) : "NULL";
+    $details = $details ? "'" . mysqli_real_escape_string($conn, $details) . "'" : "NULL";
+    $sql = "INSERT INTO activity_log (user_id, module, action, target_type, target_id, details, created_at)
+            VALUES ($user_id, '$module', '$action', $target_type, $target_id, $details, NOW())";
+    mysqli_query($conn, $sql);
 }
+
+// --- LOGIN ACTIVITY LOGGING PATCH ---
+// If this is the first page load after login, log the login event
+if (isset($_SESSION['user_id']) && empty($_SESSION['login_logged'])) {
+    // Only log once per session
+    $user_id = $_SESSION['user_id'];
+    // Optionally, get user info for details
+    $user_info = null;
+    $user_res = mysqli_query($conn, "SELECT full_name, email FROM user_account WHERE user_id = '$user_id'");
+    if ($user_res && mysqli_num_rows($user_res) > 0) {
+        $user_info = mysqli_fetch_assoc($user_res);
+        $details = "User logged in: " . $user_info['full_name'] . " (" . $user_info['email'] . ")";
+    } else {
+        $details = "User logged in: user_id $user_id";
+    }
+    log_activity($conn, $user_id, 'Admin', 'login', 'user_account', $user_id, $details);
+    $_SESSION['login_logged'] = true;
+}
+// --- END LOGIN ACTIVITY LOGGING PATCH ---
 
 $roles = [];
 $sql = "SELECT role_id, name FROM role ORDER BY name ASC";
@@ -40,6 +64,17 @@ if ($result) {
 // Assume current user ID is available (replace with your session logic)
 $current_user_id = $_SESSION['user_id'] ?? 1; // Example fallback to 1
 
+// Handle logout
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['logout'])) {
+    log_activity($conn, $current_user_id, 'Admin', 'logout', 'user_account', $current_user_id, 'Admin logged out');
+    // Remove login_logged so next login is logged again
+    unset($_SESSION['login_logged']);
+    session_unset();
+    session_destroy();
+    header('Location: ../index.php');
+    exit();
+}
+
 // Handle form submission for Create Account
 $create_account_msg = '';
 $create_account_success = false;
@@ -61,8 +96,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['create_account'])) {
             $hashed_password = password_hash($password, PASSWORD_DEFAULT);
             $insert_query = "INSERT INTO user_account (email, password, full_name, role_id, department_id, job_role_id, created_at, updated_at) VALUES ('$email', '$hashed_password', '$fullName', '$role_id', '$department_id', '$job_role_id', NOW(), NOW())";
             if (mysqli_query($conn, $insert_query)) {
+                $new_user_id = mysqli_insert_id($conn);
                 $create_account_msg = '<div class="alert alert-success">Account created successfully!</div>';
                 $create_account_success = true;
+                log_activity($conn, $current_user_id, 'User Management', 'create_account', 'user_account', $new_user_id, "Created user: $fullName ($email)");
             } else {
                 $create_account_msg = '<div class="alert alert-danger">Error creating account. Please try again.</div>';
             }
@@ -95,6 +132,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['change_password'])) {
                     if (mysqli_query($conn, $update_query)) {
                         $change_password_msg = '<div class="alert alert-success">Password changed successfully!</div>';
                         $change_password_success = true;
+                        log_activity($conn, $current_user_id, 'User Management', 'change_password', 'user_account', $current_user_id, "Changed own password");
                     } else {
                         $change_password_msg = '<div class="alert alert-danger">Error updating password. Please try again.</div>';
                     }
@@ -116,6 +154,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['delete_user'])) {
     $delete_query = "DELETE FROM user_account WHERE user_id = '$user_id_to_delete'";
     if (mysqli_query($conn, $delete_query)) {
         $user_action_msg = '<div id="userActionMsg" class="alert alert-success">User deleted successfully.</div>';
+        log_activity($conn, $current_user_id, 'User Management', 'delete_user', 'user_account', $user_id_to_delete, "Deleted user_id: $user_id_to_delete");
     } else {
         $user_action_msg = '<div id="userActionMsg" class="alert alert-danger">Failed to delete user.</div>';
     }
@@ -132,6 +171,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['edit_user'])) {
     $edit_job_role_id = $_POST['job_role_id'] ?: null;
     $edit_new_password = $_POST['new_password'] ?? '';
 
+    // For activity log details, fetch old values
+    $old_user = null;
+    $old_user_query = "SELECT * FROM user_account WHERE user_id = '$edit_user_id'";
+    $old_user_result = mysqli_query($conn, $old_user_query);
+    if ($old_user_result && mysqli_num_rows($old_user_result) > 0) {
+        $old_user = mysqli_fetch_assoc($old_user_result);
+    }
+
     $update_query = "UPDATE user_account SET 
                     full_name = '$edit_full_name', 
                     email = '$edit_email', 
@@ -140,14 +187,27 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['edit_user'])) {
                     job_role_id = " . ($edit_job_role_id ? "'$edit_job_role_id'" : "NULL") . ",
                     updated_at = NOW()";
     
+    $password_changed = false;
     if ($edit_new_password) {
         $new_hashed_password = password_hash($edit_new_password, PASSWORD_DEFAULT);
         $update_query .= ", password = '$new_hashed_password'";
+        $password_changed = true;
     }
     $update_query .= " WHERE user_id = '$edit_user_id'";
 
     if (mysqli_query($conn, $update_query)) {
         $user_action_msg = '<div id="userActionMsg" class="alert alert-success">User updated successfully.</div>';
+        $details = "Old: " . json_encode($old_user) . "; New: " . json_encode([
+            'full_name' => $edit_full_name,
+            'email' => $edit_email,
+            'role_id' => $edit_role_id,
+            'department_id' => $edit_department_id,
+            'job_role_id' => $edit_job_role_id
+        ]);
+        log_activity($conn, $current_user_id, 'User Management', 'edit_user', 'user_account', $edit_user_id, $details);
+        if ($password_changed) {
+            log_activity($conn, $current_user_id, 'User Management', 'change_user_password', 'user_account', $edit_user_id, "Changed password for user_id: $edit_user_id");
+        }
     } else {
         $user_action_msg = '<div id="userActionMsg" class="alert alert-danger">Failed to update user.</div>';
     }
@@ -232,50 +292,90 @@ if ($total_employees_result) {
     $total_employees = $row['count'];
 }
 
-// Fetch activity logs
-$activity_query = "SELECT module, action, created_at FROM activity_log ORDER BY created_at DESC LIMIT 5";
+// Fetch activity logs for table (pagination and filters)
+$activity_limit = 15;
+$activity_page = isset($_GET['activity_page']) ? (int)$_GET['activity_page'] : 1;
+$activity_offset = ($activity_page - 1) * $activity_limit;
+
+// Optionally, add search/filter for activity logs
+$activity_search = $_GET['activity_search'] ?? '';
+$activity_module = $_GET['activity_module'] ?? '';
+$activity_action = $_GET['activity_action'] ?? '';
+
+$activity_where = "1=1";
+if ($activity_search !== '') {
+    $activity_search_esc = mysqli_real_escape_string($conn, $activity_search);
+    $activity_where .= " AND (al.module LIKE '%$activity_search_esc%' OR al.action LIKE '%$activity_search_esc%' OR al.details LIKE '%$activity_search_esc%')";
+}
+if ($activity_module !== '') {
+    $activity_module_esc = mysqli_real_escape_string($conn, $activity_module);
+    $activity_where .= " AND al.module = '$activity_module_esc'";
+}
+if ($activity_action !== '') {
+    $activity_action_esc = mysqli_real_escape_string($conn, $activity_action);
+    $activity_where .= " AND al.action = '$activity_action_esc'";
+}
+
+$activity_query = "SELECT al.*, ua.full_name AS user_name, ua.email AS user_email
+                   FROM activity_log al
+                   LEFT JOIN user_account ua ON al.user_id = ua.user_id
+                   WHERE $activity_where
+                   ORDER BY al.created_at DESC
+                   LIMIT $activity_limit OFFSET $activity_offset";
 $activity_result = mysqli_query($conn, $activity_query);
+
+$activity_logs = [];
 if ($activity_result) {
     while ($row = mysqli_fetch_assoc($activity_result)) {
         $activity_logs[] = $row;
     }
 }
+
+// For pagination
+$activity_total_query = "SELECT COUNT(*) as total FROM activity_log al LEFT JOIN user_account ua ON al.user_id = ua.user_id WHERE $activity_where";
+$activity_total_result = mysqli_query($conn, $activity_total_query);
+$activity_total_row = mysqli_fetch_assoc($activity_total_result);
+$activity_total_pages = ceil($activity_total_row['total'] / $activity_limit);
+
+$show = $_GET['show'] ?? 'dashboard';
 ?>
 
 <?php include 'adminHeader.php'; ?>
 
 <div class="sidebar">
     <div class="nav-section">
-        <div class="nav-item" id="dashboardBtn" onclick="showContent('dashboardContent')">
+        <a class="nav-item" id="dashboardBtn" href="?show=dashboard">
             <i class="fa-solid fa-map"></i>
             Dashboard
-        </div>
-        <div class="nav-item" id="employeeBtn" onclick="showContent('employeeListContainer'); toggleEmployeeSubMenu();">
+        </a>
+        <!-- Employee Dropdown Toggle (not a link) -->
+        <div class="nav-item" id="employeeBtn" style="cursor:pointer;">
             <i class="fa-solid fa-user"></i>
             Employee
             <i class="fa-solid fa-chevron-down" style="margin-left:auto;font-size:1rem;"></i>
         </div>
-        <div class="nav-sub" id="employeeSubMenu">
-            <div class="nav-sub-item" onclick="showContent('attendanceContainer')">Attendance</div>
-            <div class="nav-sub-item" onclick="showContent('leaveContainer')">Leave</div>
-            <div class="nav-sub-item" onclick="showContent('resignationContainer')">Resignation</div>
+        <!-- Employee Submenu -->
+        <div class="nav-sub" id="employeeSubMenu" style="display:none; margin-left: 32px;">
+            <a class="nav-sub-item" href="?show=attendance">Attendance</a>
+            <a class="nav-sub-item" href="?show=leave">Leave</a>
+            <a class="nav-sub-item" href="?show=resignation">Resignation</a>
         </div>
-        <div class="nav-item" onclick="showContent('notificationContainer')">
+        <a class="nav-item" href="?show=notification">
             <i class="fa-solid fa-bell"></i>
             Notification
-        </div>
-        <div class="nav-item" onclick="showContent('activityLogsContainer')">
+        </a>
+        <a class="nav-item" href="?show=activityLogs">
             <i class="fa-regular fa-clock"></i>
             Activity Logs
-        </div>
-        <div class="nav-item" id="createAccountBtn" onclick="showContent('createAccountFormContainer')">
+        </a>
+        <a class="nav-item" id="createAccountBtn" href="?show=createAccount">
             <i class="fa-solid fa-user-plus"></i>
             Create Account
-        </div>
-        <div class="nav-item" id="changePasswordBtn" onclick="showContent('changePasswordFormContainer')">
+        </a>
+        <a class="nav-item" id="changePasswordBtn" href="?show=changePassword">
             <i class="fa-solid fa-key"></i>
             Change Password
-        </div>
+        </a>
     </div>
     <div class="nav-bottom">
         <form method="POST" style="width:100%;">
@@ -288,350 +388,464 @@ if ($activity_result) {
 </div>
 <div class="main-content" id="mainContentArea">
 
-    <div id="dashboardContent" style="display: block;">
-        <h3 class="dashboard-title">Welcome to the Dashboard</h3>
-        <div class="container mt-4">
-            <div class="row">
-                <!-- Attendance Monitoring -->
-                <div class="col-md-6">
-                    <div class="card shadow-sm mb-4">
-                        <div class="card-header bg-primary text-white">
-                            <h4>Attendance Monitoring</h4>
+    <?php if ($show === 'dashboard'): ?>
+        <div id="dashboardContent" style="display: block;">
+            <h3 class="dashboard-title">Welcome to the Dashboard</h3>
+            <div class="container mt-4">
+                <div class="row">
+                    <!-- Attendance Monitoring -->
+                    <div class="col-md-6">
+                        <div class="card shadow-sm mb-4">
+                            <div class="card-header bg-primary text-white">
+                                <h4>Attendance Monitoring</h4>
+                            </div>
+                            <div class="card-body">
+                                <canvas id="attendanceChart"></canvas>
+                            </div>
                         </div>
-                        <div class="card-body">
-                            <canvas id="attendanceChart"></canvas>
+                    </div>
+                    
+                    <!-- Leave Management -->
+                    <div class="col-md-6">
+                        <div class="card shadow-sm mb-4">
+                            <div class="card-header bg-success text-white">
+                                <h4>Leave Management</h4>
+                            </div>
+                            <div class="card-body">
+                                <canvas id="leaveChart"></canvas>
+                            </div>
                         </div>
                     </div>
                 </div>
                 
-                <!-- Leave Management -->
-                <div class="col-md-6">
-                    <div class="card shadow-sm mb-4">
-                        <div class="card-header bg-success text-white">
-                            <h4>Leave Management</h4>
-                        </div>
-                        <div class="card-body">
-                            <canvas id="leaveChart"></canvas>
-                        </div>
-                    </div>
-                </div>
-            </div>
-            
-            <div class="row mt-4">
-                <!-- Resignations -->
-                <div class="col-md-6">
-                    <div class="card shadow-sm mb-4">
-                        <div class="card-header bg-danger text-white">
-                            <h4>Resignations</h4>
-                        </div>
-                        <div class="card-body">
-                            <canvas id="resignationChart"></canvas>
+                <div class="row mt-4">
+                    <!-- Resignations -->
+                    <div class="col-md-6">
+                        <div class="card shadow-sm mb-4">
+                            <div class="card-header bg-danger text-white">
+                                <h4>Resignations</h4>
+                            </div>
+                            <div class="card-body">
+                                <canvas id="resignationChart"></canvas>
+                            </div>
                         </div>
                     </div>
-                </div>
-                
-                <!-- Admin Notices -->
-                <div class="col-md-6">
-                    <div class="card shadow-sm mb-4">
-                        <div class="card-header bg-warning text-dark">
-                            <h4>Admin Notices</h4>
-                        </div>
-                        <div class="card-body">
-                            <ul class="list-group">
-                                <?php if (empty($admin_notices)): ?>
-                                    <li class="list-group-item">No notices available</li>
-                                <?php else: ?>
-                                    <?php foreach ($admin_notices as $notice): ?>
-                                        <li class="list-group-item"><?= htmlspecialchars($notice['title']) ?>: <?= htmlspecialchars($notice['message']) ?></li>
-                                    <?php endforeach; ?>
-                                <?php endif; ?>
-                            </ul>
-                        </div>
-                    </div>
-                </div>
-            </div>
-            
-            <div class="row mt-4">
-                <!-- Employees Overview -->
-                <div class="col-md-6">
-                    <div class="card shadow-sm mb-4">
-                        <div class="card-header bg-info text-white">
-                            <h4>Employees Overview</h4>
-                        </div>
-                        <div class="card-body">
-                            <p class="mt-3">Total Employees: <?= $total_employees ?></p>
-                            <ul class="list-group mt-3">
-                                <?php if (empty($employees_overview)): ?>
-                                    <li class="list-group-item">No data available</li>
-                                <?php else: ?>
-                                    <?php foreach ($employees_overview as $overview): ?>
-                                        <li class="list-group-item"><?= htmlspecialchars($overview['department']) ?>: <?= htmlspecialchars($overview['count']) ?></li>
-                                    <?php endforeach; ?>
-                                <?php endif; ?>
-                            </ul>
+                    
+                    <!-- Admin Notices -->
+                    <div class="col-md-6">
+                        <div class="card shadow-sm mb-4">
+                            <div class="card-header bg-warning text-dark">
+                                <h4>Admin Notices</h4>
+                            </div>
+                            <div class="card-body">
+                                <ul class="list-group">
+                                    <?php if (empty($admin_notices)): ?>
+                                        <li class="list-group-item">No notices available</li>
+                                    <?php else: ?>
+                                        <?php foreach ($admin_notices as $notice): ?>
+                                            <li class="list-group-item"><?= htmlspecialchars($notice['title']) ?>: <?= htmlspecialchars($notice['message']) ?></li>
+                                        <?php endforeach; ?>
+                                    <?php endif; ?>
+                                </ul>
+                            </div>
                         </div>
                     </div>
                 </div>
                 
-                <!-- Activity Logs -->
-                <div class="col-md-6">
-                    <div class="card shadow-sm mb-4">
-                        <div class="card-header bg-secondary text-white">
-                            <h4>Activity Logs</h4>
+                <div class="row mt-4">
+                    <!-- Employees Overview -->
+                    <div class="col-md-6">
+                        <div class="card shadow-sm mb-4">
+                            <div class="card-header bg-info text-white">
+                                <h4>Employees Overview</h4>
+                            </div>
+                            <div class="card-body">
+                                <p class="mt-3">Total Employees: <?= $total_employees ?></p>
+                                <ul class="list-group mt-3">
+                                    <?php if (empty($employees_overview)): ?>
+                                        <li class="list-group-item">No data available</li>
+                                    <?php else: ?>
+                                        <?php foreach ($employees_overview as $overview): ?>
+                                            <li class="list-group-item"><?= htmlspecialchars($overview['department']) ?>: <?= htmlspecialchars($overview['count']) ?></li>
+                                        <?php endforeach; ?>
+                                    <?php endif; ?>
+                                </ul>
+                            </div>
                         </div>
-                        <div class="card-body">
-                            <ul class="list-group">
-                                <?php if (empty($activity_logs)): ?>
-                                    <li class="list-group-item">No activity logs available</li>
-                                <?php else: ?>
-                                    <?php foreach ($activity_logs as $log): ?>
-                                        <li class="list-group-item"><?= htmlspecialchars($log['module']) ?> - <?= htmlspecialchars($log['action']) ?> at <?= $log['created_at'] ?></li>
-                                    <?php endforeach; ?>
-                                <?php endif; ?>
-                            </ul>
+                    </div>
+                    
+                    <!-- Activity Logs -->
+                    <div class="col-md-6">
+                        <div class="card shadow-sm mb-4">
+                            <div class="card-header bg-secondary text-white">
+                                <h4>Activity Logs</h4>
+                            </div>
+                            <div class="card-body">
+                                <ul class="list-group">
+                                    <?php if (empty($activity_logs)): ?>
+                                        <li class="list-group-item">No activity logs available</li>
+                                    <?php else: ?>
+                                        <?php foreach ($activity_logs as $log): ?>
+                                            <li class="list-group-item"><?= htmlspecialchars($log['module']) ?> - <?= htmlspecialchars($log['action']) ?> at <?= $log['created_at'] ?></li>
+                                        <?php endforeach; ?>
+                                    <?php endif; ?>
+                                </ul>
+                            </div>
                         </div>
                     </div>
                 </div>
             </div>
         </div>
-    </div>
+    <?php endif; ?>
 
-    <div id="attendanceContainer" style="display: none;">
-        <h3>Attendance</h3>
-        <!-- Add content specific to Attendance here -->
-    </div>
-
-    <div id="leaveContainer" style="display: none;">
-        <h3>Leave</h3>
-        <!-- Add content specific to Leave here -->
-    </div>
-
-    <div id="resignationContainer" style="display: none;">
-        <h3>Resignation</h3>
-        <!-- Add content specific to Resignation here -->
-    </div>
-
-    <div id="notificationContainer" style="display: none;">
-        <h3>Notifications</h3>
-        <!-- Add content specific to Notifications here -->
-    </div>
-
-    <div id="activityLogsContainer" style="display: none;">
-        <h3>Activity Logs</h3>
-        <!-- Add content specific to Activity Logs here -->
-    </div>
-
-    <div id="createAccountFormContainer" style="display: none;">
-        <form class="create-account-form" id="createAccountForm" method="POST" autocomplete="off" action="?show=createAccount">
-            <h3>Create Account</h3>
-            <?php if ($create_account_msg): ?>
-                <div id="createAccountMsg"><?php echo $create_account_msg; ?></div>
-            <?php endif; ?>
-            <div class="form-group">
-                <label for="fullName">Full Name</label>
-                <input type="text" class="form-control" id="fullName" name="fullName" required>
-            </div>
-            <div class="form-group">
-                <label for="email">Email</label>
-                <input type="email" class="form-control" id="email" name="email" required>
-            </div>
-            <div class="form-group">
-                <label for="password">Password</label>
-                <input type="password" class="form-control" id="password" name="password" required>
-            </div>
-            <div class="form-group">
-                <label for="role">Role</label>
-                <select class="form-control" id="role" name="role" required>
-                    <option value="">Select Role</option>
-                    <?php foreach ($roles as $role): ?>
-                        <option value="<?php echo htmlspecialchars($role['role_id']); ?>"><?php echo htmlspecialchars($role['name']); ?></option>
-                    <?php endforeach; ?>
-                </select>
-            </div>
-            <div class="form-group">
-                <label for="department">Department</label>
-                <select class="form-control" id="department" name="department_id">
-                    <option value="">Select Department</option>
-                    <?php foreach ($departments as $department): ?>
-                        <option value="<?php echo htmlspecialchars($department['department_id']); ?>"><?php echo htmlspecialchars($department['name']); ?></option>
-                    <?php endforeach; ?>
-                </select>
-            </div>
-            <div class="form-group">
-                <label for="jobRole">Job Title</label>
-                <select class="form-control" id="jobRole" name="job_role_id">
-                    <option value="">Select Job Title</option>
-                    <?php foreach ($job_roles as $job_role): ?>
-                        <option value="<?php echo htmlspecialchars($job_role['job_role_id']); ?>"><?php echo htmlspecialchars($job_role['title']); ?></option>
-                    <?php endforeach; ?>
-                </select>
-            </div>
-            <button type="submit" class="btn btn-create" name="create_account">Create Account</button>
-        </form>
-    </div>
-
-    <div id="changePasswordFormContainer" style="display: none;">
-        <form class="change-password-form" id="changePasswordForm" method="POST" autocomplete="off" action="?show=changePassword">
-            <h3>Change Password</h3>
-            <?php if ($change_password_msg): ?>
-                <div id="changePasswordMsg"><?php echo $change_password_msg; ?></div>
-            <?php endif; ?>
-            <div class="form-group">
-                <label for="current_password">Current Password</label>
-                <input type="password" class="form-control" id="current_password" name="current_password" required>
-            </div>
-            <div class="form-group">
-                <label for="new_password">New Password</label>
-                <input type="password" class="form-control" id="new_password" name="new_password" required>
-            </div>
-            <div class="form-group">
-                <label for="confirm_password">Confirm New Password</label>
-                <input type="password" class="form-control" id="confirm_password" name="confirm_password" required>
-            </div>
-            <button type="submit" class="btn btn-change-password" name="change_password">Change Password</button>
-        </form>
-    </div>
-
-    <div id="employeeListContainer" style="display: none;">
-        <h3>User Management</h3>
-        <div id="userActionMsg"><?php echo $user_action_msg ?? ''; ?></div>
-        <div class="filter-section d-flex align-items-center mb-3 justify-content-between">
-            <div class="d-flex align-items-center">
-                <input type="text" id="search" placeholder="Search by name or email..." class="form-control" style="max-width: 300px; margin-right: 0;">
-                <button id="applySearch" class="btn btn-primary" style="max-width: 100px; margin-left: 0;">Search</button>
-            </div>
-            <div class="d-flex align-items-center">
-                <select id="filterRole" class="form-control" style="max-width: 200px; margin-left: 0;">
-                    <option value="">All Roles</option>
-                    <?php foreach ($roles as $role): ?>
-                        <option value="<?php echo htmlspecialchars($role['role_id']); ?>"><?php echo htmlspecialchars($role['name']); ?></option>
-                    <?php endforeach; ?>
-                </select>
-                <select id="filterDepartment" class="form-control" style="max-width: 200px; margin-left: 0;">
-                    <option value="">All Departments</option>
-                    <?php foreach ($departments as $department): ?>
-                        <option value="<?php echo htmlspecialchars($department['department_id']); ?>"><?php echo htmlspecialchars($department['name']); ?></option>
-                    <?php endforeach; ?>
-                </select>
-                <select id="filterJobRole" class="form-control" style="max-width: 200px; margin-left: 0;">
-                    <option value="">All Job Titles</option>
-                    <?php foreach ($job_roles as $job_role): ?>
-                        <option value="<?php echo htmlspecialchars($job_role['job_role_id']); ?>"><?php echo htmlspecialchars($job_role['title']); ?></option>
-                    <?php endforeach; ?>
-                </select>
-                <button id="resetFilters" class="btn btn-secondary" style="max-width: 50px; margin-left: 0;">
-                    <i class="fas fa-sync-alt"></i>
-                </button>
-            </div>
+    <?php if ($show === 'attendance'): ?>
+        <div id="attendanceContainer" style="display: block;">
+            <h3>Attendance</h3>
+            <!-- Add content specific to Attendance here -->
         </div>
-        <table class="table table-striped">
-            <thead>
-                <tr>
-                    <th>Full Name</th>
-                    <th>Email</th>
-                    <th>Role</th>
-                    <th>Department</th>
-                    <th>Job Title</th>
-                    <th>Created At</th>
-                    <th>Actions</th>
-                </tr>
-            </thead>
-            <tbody id="userTableBody">
-                <?php
-                $limit = 12;
-                $page = isset($_GET['page']) ? (int)$_GET['page'] : 1;
-                $offset = ($page - 1) * $limit;
+    <?php endif; ?>
 
-                $search = $_GET['search'] ?? '';
-                $filterRole = $_GET['filterRole'] ?? '';
-                $filterDepartment = $_GET['filterDepartment'] ?? '';
-                $filterJobRole = $_GET['filterJobRole'] ?? '';
+    <?php if ($show === 'leave'): ?>
+        <div id="leaveContainer" style="display: block;">
+            <h3>Leave</h3>
+            <!-- Add content specific to Leave here -->
+        </div>
+    <?php endif; ?>
 
-                $userQuery = "SELECT ua.user_id, ua.full_name, ua.email, r.role_id, r.name AS role_name, 
-                              d.department_id, d.name AS department_name, 
-                              jr.job_role_id, jr.title AS job_title,
-                              ua.created_at 
-                              FROM user_account ua
-                              JOIN role r ON ua.role_id = r.role_id 
-                              LEFT JOIN department d ON ua.department_id = d.department_id
-                              LEFT JOIN job_role jr ON ua.job_role_id = jr.job_role_id
-                              WHERE (ua.full_name LIKE '%$search%' OR ua.email LIKE '%$search%')";
+    <?php if ($show === 'resignation'): ?>
+        <div id="resignationContainer" style="display: block;">
+            <h3>Resignation</h3>
+            <!-- Add content specific to Resignation here -->
+        </div>
+    <?php endif; ?>
 
-                // Ensure filters are applied correctly
-                if ($filterRole !== '') {
-                    $userQuery .= " AND ua.role_id = '$filterRole'";
-                }
-                if ($filterDepartment !== '') {
-                    $userQuery .= " AND ua.department_id = '$filterDepartment'";
-                }
-                if ($filterJobRole !== '') {
-                    $userQuery .= " AND ua.job_role_id = '$filterJobRole'";
-                }
+    <?php if ($show === 'notification'): ?>
+        <div id="notificationContainer" style="display: block;">
+            <h3>Notifications</h3>
+            <!-- Add content specific to Notifications here -->
+        </div>
+    <?php endif; ?>
 
-                $userQuery .= " LIMIT $limit OFFSET $offset";
-                $userResult = mysqli_query($conn, $userQuery);
-                if ($userResult) {
-                    while ($user = mysqli_fetch_assoc($userResult)) {
-                        echo "<tr>";
-                        echo "<td>" . htmlspecialchars($user['full_name']) . "</td>";
-                        echo "<td>" . htmlspecialchars($user['email']) . "</td>";
-                        echo "<td data-role-id='" . htmlspecialchars($user['role_id']) . "'>" . htmlspecialchars($user['role_name']) . "</td>";
-                        echo "<td data-department-id='" . htmlspecialchars($user['department_id']) . "'>" . htmlspecialchars($user['department_name'] ?? 'N/A') . "</td>";
-                        echo "<td data-job-role-id='" . htmlspecialchars($user['job_role_id']) . "'>" . htmlspecialchars($user['job_title'] ?? 'N/A') . "</td>";
-                        echo "<td>" . htmlspecialchars($user['created_at']) . "</td>";
-                        echo "<td>
-                                <form method='POST' style='display:inline;' action='?show=employeeList'>
-                                    <input type='hidden' name='user_id' value='" . htmlspecialchars($user['user_id']) . "'>
-                                    <button type='submit' name='delete_user' class='btn btn-danger btn-sm'>
-                                        <i class='fas fa-trash-alt'></i>
-                                    </button>
-                                </form>
-                                <button class='btn btn-primary btn-sm edit-change-password-user' 
-                                    data-user-id='" . htmlspecialchars($user['user_id']) . "' 
-                                    data-full-name='" . htmlspecialchars($user['full_name']) . "' 
-                                    data-email='" . htmlspecialchars($user['email']) . "' 
-                                    data-role-id='" . htmlspecialchars($user['role_id']) . "'
-                                    data-department-id='" . htmlspecialchars($user['department_id']) . "'
-                                    data-job-role-id='" . htmlspecialchars($user['job_role_id']) . "'>
-                                    <i class='fas fa-edit'></i>
-                                </button>
-                              </td>";
-                        echo "</tr>";
-                    }
-                }
-
-                $totalQuery = "SELECT COUNT(*) as total FROM user_account WHERE (full_name LIKE '%$search%' OR email LIKE '%$search%')";
-                if ($filterRole !== '') {
-                    $totalQuery .= " AND role_id = '$filterRole'";
-                }
-                if ($filterDepartment !== '') {
-                    $totalQuery .= " AND department_id = '$filterDepartment'";
-                }
-                if ($filterJobRole !== '') {
-                    $totalQuery .= " AND job_role_id = '$filterJobRole'";
-                }
-                $totalResult = mysqli_query($conn, $totalQuery);
-                $totalRow = mysqli_fetch_assoc($totalResult);
-                $totalPages = ceil($totalRow['total'] / $limit);
-                ?>
-            </tbody>
-        </table>
-        <nav aria-label="Page navigation">
-            <ul class="pagination justify-content-center">
-                <li class="page-item <?php if($page <= 1){ echo 'disabled'; } ?>">
-                    <a class="page-link" href="<?php if($page > 1){ echo '?page=' . ($page - 1); } else { echo '#'; } ?>" data-page="<?php echo $page - 1; ?>">Previous</a>
-                </li>
-                <?php for($i = 1; $i <= $totalPages; $i++): ?>
-                    <li class="page-item <?php if($page == $i){ echo 'active'; } ?>">
-                    <a class="page-link" href="?page=<?php echo $i; ?>&show=employeeList" data-page="<?php echo $i; ?>"><?php echo $i; ?></a>
+    <?php if ($show === 'activityLogs'): ?>
+        <div id="activityLogsContainer" style="display: block;">
+            <h3>Activity Logs</h3>
+            <div class="filter-section d-flex align-items-center mb-3 justify-content-between">
+                <form id="activityLogsFilterForm" method="get" class="d-flex align-items-center" style="gap: 8px;">
+                    <input type="hidden" name="show" value="activityLogs">
+                    <input type="text" name="activity_search" value="<?= htmlspecialchars($activity_search) ?>" placeholder="Search logs..." class="form-control" style="max-width: 220px;">
+                    <select name="activity_module" class="form-control" style="max-width: 160px;">
+                        <option value="">All Modules</option>
+                        <?php
+                        $modules_res = mysqli_query($conn, "SELECT DISTINCT module FROM activity_log ORDER BY module ASC");
+                        while ($mod = mysqli_fetch_assoc($modules_res)) {
+                            $sel = ($activity_module === $mod['module']) ? 'selected' : '';
+                            echo "<option value=\"" . htmlspecialchars($mod['module']) . "\" $sel>" . htmlspecialchars($mod['module']) . "</option>";
+                        }
+                        ?>
+                    </select>
+                    <select name="activity_action" class="form-control" style="max-width: 160px;">
+                        <option value="">All Actions</option>
+                        <?php
+                        $actions_res = mysqli_query($conn, "SELECT DISTINCT action FROM activity_log ORDER BY action ASC");
+                        while ($act = mysqli_fetch_assoc($actions_res)) {
+                            $sel = ($activity_action === $act['action']) ? 'selected' : '';
+                            echo "<option value=\"" . htmlspecialchars($act['action']) . "\" $sel>" . htmlspecialchars($act['action']) . "</option>";
+                        }
+                        ?>
+                    </select>
+                    <button type="submit" class="btn btn-primary">Filter</button>
+                    <a href="?show=activityLogs" class="btn btn-secondary" title="Reset" id="activityLogsResetBtn"><i class="fas fa-sync-alt"></i></a>
+                </form>
+            </div>
+            <div class="table-responsive">
+                <table class="table table-striped table-bordered">
+                    <thead>
+                        <tr>
+                            <th>User</th>
+                            <th>Module</th>
+                            <th>Action</th>
+                            <th>Target Type</th>
+                            <th>Target ID</th>
+                            <th>Details</th>
+                            <th>Timestamp</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <?php if (empty($activity_logs)): ?>
+                            <tr><td colspan="7" class="text-center">No activity logs found.</td></tr>
+                        <?php else: ?>
+                            <?php foreach ($activity_logs as $log): ?>
+                                <tr>
+                                    <td>
+                                        <?= htmlspecialchars($log['user_name'] ?? 'System') ?>
+                                        <br>
+                                        <small><?= htmlspecialchars($log['user_email'] ?? '') ?></small>
+                                    </td>
+                                    <td><?= htmlspecialchars($log['module']) ?></td>
+                                    <td><?= htmlspecialchars($log['action']) ?></td>
+                                    <td><?= htmlspecialchars($log['target_type'] ?? '') ?></td>
+                                    <td><?= htmlspecialchars($log['target_id'] ?? '') ?></td>
+                                    <td style="max-width: 320px; word-break: break-all;">
+                                        <?php
+                                        $details = $log['details'];
+                                        if (strlen($details) > 120) {
+                                            echo htmlspecialchars(substr($details, 0, 120)) . '...';
+                                        } else {
+                                            echo htmlspecialchars($details);
+                                        }
+                                        ?>
+                                    </td>
+                                    <td><?= htmlspecialchars($log['created_at']) ?></td>
+                                </tr>
+                            <?php endforeach; ?>
+                        <?php endif; ?>
+                    </tbody>
+                </table>
+            </div>
+            <nav aria-label="Activity log page navigation">
+                <ul class="pagination justify-content-center">
+                    <li class="page-item <?php if($activity_page <= 1){ echo 'disabled'; } ?>">
+                        <a class="page-link" href="<?php
+                            $params = $_GET; $params['activity_page'] = $activity_page - 1;
+                            echo ($activity_page > 1) ? '?' . http_build_query($params) : '#';
+                        ?>">Previous</a>
                     </li>
-                <?php endfor; ?>
-                <li class="page-item <?php if($page >= $totalPages){ echo 'disabled'; } ?>">
-                    <a class="page-link" href="<?php if($page < $totalPages){ echo '?page=' . ($page + 1); } else { echo '#'; } ?>" data-page="<?php echo $page + 1; ?>">Next</a>
-                </li>
-            </ul>
-        </nav>
-    </div>
+                    <?php for($i = 1; $i <= $activity_total_pages; $i++): ?>
+                        <li class="page-item <?php if($activity_page == $i){ echo 'active'; } ?>">
+                            <a class="page-link" href="<?php
+                                $params = $_GET; $params['activity_page'] = $i;
+                                echo '?' . http_build_query($params);
+                            ?>"><?php echo $i; ?></a>
+                        </li>
+                    <?php endfor; ?>
+                    <li class="page-item <?php if($activity_page >= $activity_total_pages){ echo 'disabled'; } ?>">
+                        <a class="page-link" href="<?php
+                            $params = $_GET; $params['activity_page'] = $activity_page + 1;
+                            echo ($activity_page < $activity_total_pages) ? '?' . http_build_query($params) : '#';
+                        ?>">Next</a>
+                    </li>
+                </ul>
+            </nav>
+        </div>
+    <?php endif; ?>
+
+    <?php if ($show === 'createAccount'): ?>
+        <div id="createAccountFormContainer" style="display: block;">
+            <form class="create-account-form" id="createAccountForm" method="POST" autocomplete="off" action="?show=createAccount">
+                <h3>Create Account</h3>
+                <?php if ($create_account_msg): ?>
+                    <div id="createAccountMsg"><?php echo $create_account_msg; ?></div>
+                <?php endif; ?>
+                <div class="form-group">
+                    <label for="fullName">Full Name</label>
+                    <input type="text" class="form-control" id="fullName" name="fullName" required>
+                </div>
+                <div class="form-group">
+                    <label for="email">Email</label>
+                    <input type="email" class="form-control" id="email" name="email" required>
+                </div>
+                <div class="form-group">
+                    <label for="password">Password</label>
+                    <input type="password" class="form-control" id="password" name="password" required>
+                </div>
+                <div class="form-group">
+                    <label for="role">Role</label>
+                    <select class="form-control" id="role" name="role" required>
+                        <option value="">Select Role</option>
+                        <?php foreach ($roles as $role): ?>
+                            <option value="<?php echo htmlspecialchars($role['role_id']); ?>"><?php echo htmlspecialchars($role['name']); ?></option>
+                        <?php endforeach; ?>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="department">Department</label>
+                    <select class="form-control" id="department" name="department_id">
+                        <option value="">Select Department</option>
+                        <?php foreach ($departments as $department): ?>
+                            <option value="<?php echo htmlspecialchars($department['department_id']); ?>"><?php echo htmlspecialchars($department['name']); ?></option>
+                        <?php endforeach; ?>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="jobRole">Job Title</label>
+                    <select class="form-control" id="jobRole" name="job_role_id">
+                        <option value="">Select Job Title</option>
+                        <?php foreach ($job_roles as $job_role): ?>
+                            <option value="<?php echo htmlspecialchars($job_role['job_role_id']); ?>"><?php echo htmlspecialchars($job_role['title']); ?></option>
+                        <?php endforeach; ?>
+                    </select>
+                </div>
+                <button type="submit" class="btn btn-create" name="create_account">Create Account</button>
+            </form>
+        </div>
+    <?php endif; ?>
+
+    <?php if ($show === 'changePassword'): ?>
+        <div id="changePasswordFormContainer" style="display: block;">
+            <form class="change-password-form" id="changePasswordForm" method="POST" autocomplete="off" action="?show=changePassword">
+                <h3>Change Password</h3>
+                <?php if ($change_password_msg): ?>
+                    <div id="changePasswordMsg"><?php echo $change_password_msg; ?></div>
+                <?php endif; ?>
+                <div class="form-group">
+                    <label for="current_password">Current Password</label>
+                    <input type="password" class="form-control" id="current_password" name="current_password" required>
+                </div>
+                <div class="form-group">
+                    <label for="new_password">New Password</label>
+                    <input type="password" class="form-control" id="new_password" name="new_password" required>
+                </div>
+                <div class="form-group">
+                    <label for="confirm_password">Confirm New Password</label>
+                    <input type="password" class="form-control" id="confirm_password" name="confirm_password" required>
+                </div>
+                <button type="submit" class="btn btn-change-password" name="change_password">Change Password</button>
+            </form>
+        </div>
+    <?php endif; ?>
+
+    <?php if ($show === 'employeeList'): ?>
+        <div id="employeeListContainer" style="display: block;">
+            <h3>User Management</h3>
+            <div id="userActionMsg"><?php echo $user_action_msg ?? ''; ?></div>
+            <div class="filter-section d-flex align-items-center mb-3 justify-content-between">
+                <div class="d-flex align-items-center">
+                    <input type="text" id="search" placeholder="Search by name or email..." class="form-control" style="max-width: 300px; margin-right: 0;">
+                    <button id="applySearch" class="btn btn-primary" style="max-width: 100px; margin-left: 0;">Search</button>
+                </div>
+                <div class="d-flex align-items-center">
+                    <select id="filterRole" class="form-control" style="max-width: 200px; margin-left: 0;">
+                        <option value="">All Roles</option>
+                        <?php foreach ($roles as $role): ?>
+                            <option value="<?php echo htmlspecialchars($role['role_id']); ?>"><?php echo htmlspecialchars($role['name']); ?></option>
+                        <?php endforeach; ?>
+                    </select>
+                    <select id="filterDepartment" class="form-control" style="max-width: 200px; margin-left: 0;">
+                        <option value="">All Departments</option>
+                        <?php foreach ($departments as $department): ?>
+                            <option value="<?php echo htmlspecialchars($department['department_id']); ?>"><?php echo htmlspecialchars($department['name']); ?></option>
+                        <?php endforeach; ?>
+                    </select>
+                    <select id="filterJobRole" class="form-control" style="max-width: 200px; margin-left: 0;">
+                        <option value="">All Job Titles</option>
+                        <?php foreach ($job_roles as $job_role): ?>
+                            <option value="<?php echo htmlspecialchars($job_role['job_role_id']); ?>"><?php echo htmlspecialchars($job_role['title']); ?></option>
+                        <?php endforeach; ?>
+                    </select>
+                    <button id="resetFilters" class="btn btn-secondary" style="max-width: 50px; margin-left: 0;">
+                        <i class="fas fa-sync-alt"></i>
+                    </button>
+                </div>
+            </div>
+            <table class="table table-striped">
+                <thead>
+                    <tr>
+                        <th>Full Name</th>
+                        <th>Email</th>
+                        <th>Role</th>
+                        <th>Department</th>
+                        <th>Job Title</th>
+                        <th>Created At</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="userTableBody">
+                    <?php
+                    $limit = 12;
+                    $page = isset($_GET['page']) ? (int)$_GET['page'] : 1;
+                    $offset = ($page - 1) * $limit;
+
+                    $search = $_GET['search'] ?? '';
+                    $filterRole = $_GET['filterRole'] ?? '';
+                    $filterDepartment = $_GET['filterDepartment'] ?? '';
+                    $filterJobRole = $_GET['filterJobRole'] ?? '';
+
+                    $userQuery = "SELECT ua.user_id, ua.full_name, ua.email, r.role_id, r.name AS role_name, 
+                                  d.department_id, d.name AS department_name, 
+                                  jr.job_role_id, jr.title AS job_title,
+                                  ua.created_at 
+                                  FROM user_account ua
+                                  JOIN role r ON ua.role_id = r.role_id 
+                                  LEFT JOIN department d ON ua.department_id = d.department_id
+                                  LEFT JOIN job_role jr ON ua.job_role_id = jr.job_role_id
+                                  WHERE (ua.full_name LIKE '%$search%' OR ua.email LIKE '%$search%')";
+
+                    // Ensure filters are applied correctly
+                    if ($filterRole !== '') {
+                        $userQuery .= " AND ua.role_id = '$filterRole'";
+                    }
+                    if ($filterDepartment !== '') {
+                        $userQuery .= " AND ua.department_id = '$filterDepartment'";
+                    }
+                    if ($filterJobRole !== '') {
+                        $userQuery .= " AND ua.job_role_id = '$filterJobRole'";
+                    }
+
+                    $userQuery .= " LIMIT $limit OFFSET $offset";
+                    $userResult = mysqli_query($conn, $userQuery);
+                    if ($userResult) {
+                        while ($user = mysqli_fetch_assoc($userResult)) {
+                            echo "<tr>";
+                            echo "<td>" . htmlspecialchars($user['full_name']) . "</td>";
+                            echo "<td>" . htmlspecialchars($user['email']) . "</td>";
+                            echo "<td data-role-id='" . htmlspecialchars($user['role_id']) . "'>" . htmlspecialchars($user['role_name']) . "</td>";
+                            echo "<td data-department-id='" . htmlspecialchars($user['department_id']) . "'>" . htmlspecialchars($user['department_name'] ?? 'N/A') . "</td>";
+                            echo "<td data-job-role-id='" . htmlspecialchars($user['job_role_id']) . "'>" . htmlspecialchars($user['job_title'] ?? 'N/A') . "</td>";
+                            echo "<td>" . htmlspecialchars($user['created_at']) . "</td>";
+                            echo "<td>
+                                    <form method='POST' style='display:inline;' action='?show=employeeList'>
+                                        <input type='hidden' name='user_id' value='" . htmlspecialchars($user['user_id']) . "'>
+                                        <button type='submit' name='delete_user' class='btn btn-danger btn-sm'>
+                                            <i class='fas fa-trash-alt'></i>
+                                        </button>
+                                    </form>
+                                    <button class='btn btn-primary btn-sm edit-change-password-user' 
+                                        data-user-id='" . htmlspecialchars($user['user_id']) . "' 
+                                        data-full-name='" . htmlspecialchars($user['full_name']) . "' 
+                                        data-email='" . htmlspecialchars($user['email']) . "' 
+                                        data-role-id='" . htmlspecialchars($user['role_id']) . "'
+                                        data-department-id='" . htmlspecialchars($user['department_id']) . "'
+                                        data-job-role-id='" . htmlspecialchars($user['job_role_id']) . "'>
+                                        <i class='fas fa-edit'></i>
+                                    </button>
+                                  </td>";
+                            echo "</tr>";
+                        }
+                    }
+
+                    $totalQuery = "SELECT COUNT(*) as total FROM user_account WHERE (full_name LIKE '%$search%' OR email LIKE '%$search%')";
+                    if ($filterRole !== '') {
+                        $totalQuery .= " AND role_id = '$filterRole'";
+                    }
+                    if ($filterDepartment !== '') {
+                        $totalQuery .= " AND department_id = '$filterDepartment'";
+                    }
+                    if ($filterJobRole !== '') {
+                        $totalQuery .= " AND job_role_id = '$filterJobRole'";
+                    }
+                    $totalResult = mysqli_query($conn, $totalQuery);
+                    $totalRow = mysqli_fetch_assoc($totalResult);
+                    $totalPages = ceil($totalRow['total'] / $limit);
+                    ?>
+                </tbody>
+            </table>
+            <nav aria-label="Page navigation">
+                <ul class="pagination justify-content-center">
+                    <li class="page-item <?php if($page <= 1){ echo 'disabled'; } ?>">
+                        <a class="page-link" href="<?php if($page > 1){ echo '?page=' . ($page - 1); } else { echo '#'; } ?>" data-page="<?php echo $page - 1; ?>">Previous</a>
+                    </li>
+                    <?php for($i = 1; $i <= $totalPages; $i++): ?>
+                        <li class="page-item <?php if($page == $i){ echo 'active'; } ?>">
+                        <a class="page-link" href="?page=<?php echo $i; ?>&show=employeeList" data-page="<?php echo $i; ?>"><?php echo $i; ?></a>
+                        </li>
+                    <?php endfor; ?>
+                    <li class="page-item <?php if($page >= $totalPages){ echo 'disabled'; } ?>">
+                        <a class="page-link" href="<?php if($page < $totalPages){ echo '?page=' . ($page + 1); } else { echo '#'; } ?>" data-page="<?php echo $page + 1; ?>">Next</a>
+                    </li>
+                </ul>
+            </nav>
+        </div>
+    <?php endif; ?>
 
     <!-- Modal for Edit/Change Password -->
     <div class="modal fade" id="editChangePasswordModal" tabindex="-1" role="dialog" aria-labelledby="editChangePasswordModalLabel" aria-hidden="true">
@@ -762,6 +976,50 @@ if ($activity_result) {
         const toShow = showMap[show] || 'dashboardContent';
         const showEl = document.getElementById(toShow);
         if (showEl) showEl.style.display = 'block';
+    });
+
+    // --- FIX: Actually hide User Management when filtering/resetting Activity Logs ---
+    document.addEventListener('DOMContentLoaded', function() {
+        // Helper to hide User Management section if present
+        function hideUserManagement() {
+            // Try both possible containers
+            const userManagement = document.getElementById('employeeListContainer');
+            if (userManagement) userManagement.style.display = 'none';
+        }
+
+        // Hide User Management if we are on Activity Logs (on page load)
+        const show = (new URLSearchParams(window.location.search)).get('show');
+        if (show === 'activityLogs') {
+            hideUserManagement();
+        }
+
+        // Also hide User Management immediately after filter/reset in Activity Logs (before reload)
+        const activityLogsFilterForm = document.getElementById('activityLogsFilterForm');
+        const activityLogsResetBtn = document.getElementById('activityLogsResetBtn');
+        if (activityLogsFilterForm) {
+            activityLogsFilterForm.addEventListener('submit', function(e) {
+                hideUserManagement();
+            });
+        }
+        if (activityLogsResetBtn) {
+            activityLogsResetBtn.addEventListener('click', function(e) {
+                hideUserManagement();
+            });
+        }
+    });
+
+    document.addEventListener('DOMContentLoaded', function() {
+        var employeeBtn = document.getElementById('employeeBtn');
+        var employeeSubMenu = document.getElementById('employeeSubMenu');
+        if (employeeBtn && employeeSubMenu) {
+            employeeBtn.addEventListener('click', function() {
+                if (employeeSubMenu.style.display === 'none' || employeeSubMenu.style.display === '') {
+                    employeeSubMenu.style.display = 'block';
+                } else {
+                    employeeSubMenu.style.display = 'none';
+                }
+            });
+        }
     });
 </script>
 

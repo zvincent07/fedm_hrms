@@ -174,6 +174,26 @@
                 padding: 16px;
             }
         }
+        .sidebar .nav-item{
+        text-decoration: none !important;
+    }
+
+    .nav-sub {
+    margin-left: 32px;
+}
+.nav-sub-item {
+    display: block;
+    padding: 8px 0 8px 24px;
+    color: #fff;
+    text-decoration: none;
+    font-size: 1rem;
+}
+.nav-sub-item:hover {
+    background: #b30000;
+    color: #fff;
+    border-radius: 8px;
+    text-decoration: none !important; 
+}
     </style>
 </head>
 <body>
