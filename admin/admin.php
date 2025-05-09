@@ -153,187 +153,97 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['edit_user'])) {
     }
     echo "<script>setTimeout(() => { document.getElementById('userActionMsg').style.display = 'none'; }, 3000);</script>";
 }
+
+// Fetch data from the database
+$attendance_summary = [];
+$leave_requests = [];
+$resignations = [];
+$admin_notices = [];
+$employees_overview = [];
+$activity_logs = [];
+$new_employees_this_month = 0;
+$total_employees = 0;
+
+// Fetch attendance summary
+$attendance_query = "SELECT status, COUNT(*) as count FROM attendance WHERE date = CURDATE() GROUP BY status";
+$attendance_result = mysqli_query($conn, $attendance_query);
+if ($attendance_result) {
+    while ($row = mysqli_fetch_assoc($attendance_result)) {
+        $attendance_summary[$row['status']] = $row['count'];
+    }
+}
+
+// Fetch leave requests
+$leave_query = "SELECT status, COUNT(*) as count FROM leave_request WHERE start_date <= CURDATE() AND end_date >= CURDATE() GROUP BY status";
+$leave_result = mysqli_query($conn, $leave_query);
+if ($leave_result) {
+    while ($row = mysqli_fetch_assoc($leave_result)) {
+        $leave_requests[$row['status']] = $row['count'];
+    }
+}
+
+// Fetch resignations
+$resignation_query = "SELECT status, COUNT(*) as count FROM resignation GROUP BY status";
+$resignation_result = mysqli_query($conn, $resignation_query);
+if ($resignation_result) {
+    while ($row = mysqli_fetch_assoc($resignation_result)) {
+        $resignations[$row['status']] = $row['count'];
+    }
+}
+
+// Fetch admin notices
+$notice_query = "SELECT title, message FROM admin_notice ORDER BY created_at DESC LIMIT 5";
+$notice_result = mysqli_query($conn, $notice_query);
+if ($notice_result) {
+    while ($row = mysqli_fetch_assoc($notice_result)) {
+        $admin_notices[] = $row;
+    }
+}
+
+// Fetch employees overview
+$employees_query = "SELECT department.name as department, COUNT(user_account.user_id) as count FROM user_account 
+                    JOIN department ON user_account.department_id = department.department_id 
+                    WHERE role_id = (SELECT role_id FROM role WHERE name = 'Employee')
+                    GROUP BY department.name";
+$employees_result = mysqli_query($conn, $employees_query);
+if ($employees_result) {
+    while ($row = mysqli_fetch_assoc($employees_result)) {
+        $employees_overview[] = $row;
+    }
+}
+
+// Fetch new employees this month excluding Admins
+$new_employees_query = "SELECT COUNT(user_id) as count FROM user_account 
+                        WHERE MONTH(created_at) = MONTH(CURDATE()) 
+                        AND YEAR(created_at) = YEAR(CURDATE()) 
+                        AND role_id != (SELECT role_id FROM role WHERE name = 'Admin')";
+$new_employees_result = mysqli_query($conn, $new_employees_query);
+if ($new_employees_result) {
+    $row = mysqli_fetch_assoc($new_employees_result);
+    $new_employees_this_month = $row['count'];
+}
+
+// Fetch total employees excluding Admins
+$total_employees_query = "SELECT COUNT(user_id) as count FROM user_account 
+                          WHERE role_id = (SELECT role_id FROM role WHERE name = 'Employee')";
+$total_employees_result = mysqli_query($conn, $total_employees_query);
+if ($total_employees_result) {
+    $row = mysqli_fetch_assoc($total_employees_result);
+    $total_employees = $row['count'];
+}
+
+// Fetch activity logs
+$activity_query = "SELECT module, action, created_at FROM activity_log ORDER BY created_at DESC LIMIT 5";
+$activity_result = mysqli_query($conn, $activity_query);
+if ($activity_result) {
+    while ($row = mysqli_fetch_assoc($activity_result)) {
+        $activity_logs[] = $row;
+    }
+}
 ?>
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Admin Dashboard</title>
-    <link rel="stylesheet" href="../css/styles.css">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
-    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
-    <style>
-        body {
-            margin: 0;
-            padding: 0;
-            background: #f5f5f5;
-            font-family: 'Segoe UI', 'Roboto', Arial, sans-serif;
-        }
-        .sidebar {
-            width: 260px;
-            background: #fff;
-            border-radius: 0 24px 24px 0;
-            box-shadow: 0 8px 32px rgba(31,38,135,0.08);
-            padding: 0;
-            min-height: 100vh;
-            display: flex;
-            flex-direction: column;
-            gap: 16px;
-            position: fixed;
-            left: 0;
-            top: 0;
-            border-right: 1.5px solid #e0e0e0;
-            transition: box-shadow 0.2s;
-        }
-        .sidebar .nav-section {
-            margin-bottom: 0;
-            margin-top: 24px;
-        }
-        .sidebar .nav-item {
-            display: flex;
-            align-items: center;
-            gap: 16px;
-            font-size: 1.15rem;
-            font-weight: 600;
-            color: #b30000;
-            background: #f8eaea;
-            border-radius: 14px;
-            padding: 12px 28px;
-            margin: 10px 16px 0 16px;
-            cursor: pointer;
-            transition: background 0.18s, color 0.18s, box-shadow 0.18s;
-            box-shadow: 0 2px 8px rgba(179,0,0,0.03);
-            border: none;
-            outline: none;
-        }
-        .sidebar .nav-item.active, .sidebar .nav-item:hover {
-            background: #b30000;
-            color: #fff;
-            box-shadow: 0 4px 16px rgba(179,0,0,0.08);
-        }
-        .sidebar .nav-item i {
-            font-size: 1.3rem;
-            min-width: 28px;
-            text-align: center;
-        }
-        .sidebar .nav-label {
-            font-size: 1.1rem;
-            font-weight: bold;
-            color: #900;
-            margin-left: 12px;
-        }
-        .sidebar .nav-sub {
-            margin-left: 60px;
-            margin-bottom: 8px;
-            display: none;
-            flex-direction: column;
-            gap: 4px;
-        }
-        .sidebar .nav-sub.show {
-            display: flex;
-        }
-        .sidebar .nav-sub .nav-sub-item {
-            font-size: 1.05rem;
-            color: #b30000;
-            background: #fff;
-            border-radius: 8px;
-            padding: 7px 16px;
-            cursor: pointer;
-            transition: background 0.15s, color 0.15s;
-        }
-        .sidebar .nav-sub .nav-sub-item:hover {
-            background: #f8eaea;
-            color: #900;
-        }
-        .sidebar .nav-divider {
-            border-left: 4px solid #b30000;
-            height: 32px;
-            margin: 0 0 16px 32px;
-        }
-        .sidebar .nav-bottom {
-            margin-top: auto;
-            padding-bottom: 24px;
-        }
-        .sidebar .nav-bottom .nav-item {
-            background: #f8eaea;
-            color: #b30000;
-            border-radius: 14px;
-            margin: 0 16px;
-            font-weight: 600;
-            font-size: 1.1rem;
-            display: flex;
-            align-items: center;
-            gap: 16px;
-            padding: 12px 28px;
-            transition: background 0.18s, color 0.18s;
-        }
-        .sidebar .nav-bottom .nav-item:hover {
-            background: #b30000;
-            color: #fff;
-        }
-        .main-content {
-            margin-left: 260px;
-            padding: 48px 40px;
-            min-height: 100vh;
-            background: #f1f1f1;
-            border-radius: 0 0 24px 24px;
-            transition: margin-left 0.2s;
-        }
-        .create-account-form, .change-password-form {
-            max-width: 500px;
-            margin: 0 auto;
-            background: #fff;
-            border-radius: 16px;
-            box-shadow: 0 4px 24px rgba(31,38,135,0.08);
-            padding: 32px 32px 24px 32px;
-        }
-        .create-account-form h3, .change-password-form h3 {
-            color: #b30000;
-            font-weight: 700;
-            margin-bottom: 24px;
-        }
-        .form-group label {
-            font-weight: 500;
-        }
-        .btn-create, .btn-change-password {
-            background: #b30000;
-            color: #fff;
-            font-weight: 600;
-            border-radius: 8px;
-            padding: 10px 0;
-            width: 100%;
-            margin-top: 18px;
-        }
-        .btn-create:hover, .btn-change-password:hover {
-            background: #900;
-        }
-        .success-message {
-            margin-bottom: 16px;
-            font-weight: 600;
-            color: #155724;
-            background: #d4edda;
-            border: 1px solid #c3e6cb;
-            border-radius: 8px;
-            padding: 12px 18px;
-        }
-        @media (max-width: 900px) {
-            .sidebar {
-                position: static;
-                width: 100%;
-                border-radius: 0;
-                left: 0;
-                top: 0;
-                min-height: 0;
-            }
-            .main-content {
-                margin-left: 0;
-                padding: 16px;
-            }
-        }
-    </style>
-</head>
-<body>
+
+<?php include 'adminHeader.php'; ?>
+
 <div class="sidebar">
     <div class="nav-section">
         <div class="nav-item" id="dashboardBtn">
@@ -346,9 +256,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['edit_user'])) {
             <i class="fa-solid fa-chevron-down" style="margin-left:auto;font-size:1rem;"></i>
         </div>
         <div class="nav-sub" id="employeeSubMenu">
-            <div class="nav-sub-item">Attendance</div>
-            <div class="nav-sub-item">Leave</div>
-            <div class="nav-sub-item">Resignation</div>
+            <div class="nav-sub-item" onclick="showContent('attendanceContainer')">Attendance</div>
+            <div class="nav-sub-item" onclick="showContent('leaveContainer')">Leave</div>
+            <div class="nav-sub-item" onclick="showContent('resignationContainer')">Resignation</div>
         </div>
         <div class="nav-item">
             <i class="fa-solid fa-bell"></i>
@@ -377,95 +287,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['edit_user'])) {
     </div>
 </div>
 <div class="main-content" id="mainContentArea">
-
-    <?php
-    // Fetch data from the database
-    $attendance_summary = [];
-    $leave_requests = [];
-    $resignations = [];
-    $admin_notices = [];
-    $employees_overview = [];
-    $activity_logs = [];
-    $new_employees_this_month = 0;
-    $total_employees = 0;
-
-    // Fetch attendance summary
-    $attendance_query = "SELECT status, COUNT(*) as count FROM attendance WHERE date = CURDATE() GROUP BY status";
-    $attendance_result = mysqli_query($conn, $attendance_query);
-    if ($attendance_result) {
-        while ($row = mysqli_fetch_assoc($attendance_result)) {
-            $attendance_summary[$row['status']] = $row['count'];
-        }
-    }
-
-    // Fetch leave requests
-    $leave_query = "SELECT status, COUNT(*) as count FROM leave_request WHERE start_date <= CURDATE() AND end_date >= CURDATE() GROUP BY status";
-    $leave_result = mysqli_query($conn, $leave_query);
-    if ($leave_result) {
-        while ($row = mysqli_fetch_assoc($leave_result)) {
-            $leave_requests[$row['status']] = $row['count'];
-        }
-    }
-
-    // Fetch resignations
-    $resignation_query = "SELECT status, COUNT(*) as count FROM resignation GROUP BY status";
-    $resignation_result = mysqli_query($conn, $resignation_query);
-    if ($resignation_result) {
-        while ($row = mysqli_fetch_assoc($resignation_result)) {
-            $resignations[$row['status']] = $row['count'];
-        }
-    }
-
-    // Fetch admin notices
-    $notice_query = "SELECT title, message FROM admin_notice ORDER BY created_at DESC LIMIT 5";
-    $notice_result = mysqli_query($conn, $notice_query);
-    if ($notice_result) {
-        while ($row = mysqli_fetch_assoc($notice_result)) {
-            $admin_notices[] = $row;
-        }
-    }
-
-    // Fetch employees overview
-    $employees_query = "SELECT department.name as department, COUNT(user_account.user_id) as count FROM user_account 
-                        JOIN department ON user_account.department_id = department.department_id 
-                        WHERE role_id = (SELECT role_id FROM role WHERE name = 'Employee')
-                        GROUP BY department.name";
-    $employees_result = mysqli_query($conn, $employees_query);
-    if ($employees_result) {
-        while ($row = mysqli_fetch_assoc($employees_result)) {
-            $employees_overview[] = $row;
-        }
-    }
-
-    // Fetch new employees this month excluding Admins
-    $new_employees_query = "SELECT COUNT(user_id) as count FROM user_account 
-                            WHERE MONTH(created_at) = MONTH(CURDATE()) 
-                            AND YEAR(created_at) = YEAR(CURDATE()) 
-                            AND role_id != (SELECT role_id FROM role WHERE name = 'Admin')";
-    $new_employees_result = mysqli_query($conn, $new_employees_query);
-    if ($new_employees_result) {
-        $row = mysqli_fetch_assoc($new_employees_result);
-        $new_employees_this_month = $row['count'];
-    }
-
-    // Fetch total employees excluding Admins
-    $total_employees_query = "SELECT COUNT(user_id) as count FROM user_account 
-                              WHERE role_id = (SELECT role_id FROM role WHERE name = 'Employee')";
-    $total_employees_result = mysqli_query($conn, $total_employees_query);
-    if ($total_employees_result) {
-        $row = mysqli_fetch_assoc($total_employees_result);
-        $total_employees = $row['count'];
-    }
-
-    // Fetch activity logs
-    $activity_query = "SELECT module, action, created_at FROM activity_log ORDER BY created_at DESC LIMIT 5";
-    $activity_result = mysqli_query($conn, $activity_query);
-    if ($activity_result) {
-        while ($row = mysqli_fetch_assoc($activity_result)) {
-            $activity_logs[] = $row;
-        }
-    }
-    ?>
 
     <div id="dashboardContent" style="display:none;">
         <h3 class="dashboard-title">Welcome to the Dashboard</h3>
@@ -575,8 +396,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['edit_user'])) {
         </div>
     </div>
 
+    <div id="attendanceContainer" style="display:none;">
+        <h3>Attendance</h3>
+        <!-- Add content specific to Attendance here -->
+    </div>
+
+    <div id="leaveContainer" style="display:none;">
+        <h3>Leave</h3>
+        <!-- Add content specific to Leave here -->
+    </div>
+
+    <div id="resignationContainer" style="display:none;">
+        <h3>Resignation</h3>
+        <!-- Add content specific to Resignation here -->
+    </div>
+
     <div id="createAccountFormContainer" style="display:none;">
-        <form class="create-account-form" id="createAccountForm" method="POST" autocomplete="off">
+        <form class="create-account-form" id="createAccountForm" method="POST" autocomplete="off" action="?show=createAccount">
             <h3>Create Account</h3>
             <?php if ($create_account_msg): ?>
                 <div id="createAccountMsg"><?php echo $create_account_msg; ?></div>
@@ -625,7 +461,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['edit_user'])) {
     </div>
 
     <div id="changePasswordFormContainer" style="display:none;">
-        <form class="change-password-form" id="changePasswordForm" method="POST" autocomplete="off">
+        <form class="change-password-form" id="changePasswordForm" method="POST" autocomplete="off" action="?show=changePassword">
             <h3>Change Password</h3>
             <?php if ($change_password_msg): ?>
                 <div id="changePasswordMsg"><?php echo $change_password_msg; ?></div>
@@ -734,7 +570,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['edit_user'])) {
                         echo "<td data-job-role-id='" . htmlspecialchars($user['job_role_id']) . "'>" . htmlspecialchars($user['job_title'] ?? 'N/A') . "</td>";
                         echo "<td>" . htmlspecialchars($user['created_at']) . "</td>";
                         echo "<td>
-                                <form method='POST' style='display:inline;'>
+                                <form method='POST' style='display:inline;' action='?show=employeeList'>
                                     <input type='hidden' name='user_id' value='" . htmlspecialchars($user['user_id']) . "'>
                                     <button type='submit' name='delete_user' class='btn btn-danger btn-sm'>
                                         <i class='fas fa-trash-alt'></i>
@@ -777,7 +613,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['edit_user'])) {
                 </li>
                 <?php for($i = 1; $i <= $totalPages; $i++): ?>
                     <li class="page-item <?php if($page == $i){ echo 'active'; } ?>">
-                        <a class="page-link" href="?page=<?php echo $i; ?>" data-page="<?php echo $i; ?>"><?php echo $i; ?></a>
+                    <a class="page-link" href="?page=<?php echo $i; ?>&show=employeeList" data-page="<?php echo $i; ?>"><?php echo $i; ?></a>
                     </li>
                 <?php endfor; ?>
                 <li class="page-item <?php if($page >= $totalPages){ echo 'disabled'; } ?>">
@@ -786,110 +622,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['edit_user'])) {
             </ul>
         </nav>
     </div>
-    <script>
-        document.querySelectorAll('.pagination a').forEach(link => {
-            link.addEventListener('click', function(event) {
-                event.preventDefault();
-                const page = this.getAttribute('data-page');
-                if (page && page !== '#') {
-                    employeeListContainer.style.display = 'block';
-                    createAccountFormContainer.style.display = 'none';
-                    changePasswordFormContainer.style.display = 'none';
-                    dashboardContent.style.display = 'none';
-                    window.location.href = '?page=' + page;
-                }
-            });
-        });
-
-        document.querySelectorAll('.edit-change-password-user').forEach(button => {
-            button.addEventListener('click', function() {
-                const userId = this.getAttribute('data-user-id');
-                const fullName = this.getAttribute('data-full-name');
-                const email = this.getAttribute('data-email');
-                const roleId = this.getAttribute('data-role-id');
-                const departmentId = this.getAttribute('data-department-id');
-                const jobRoleId = this.getAttribute('data-job-role-id');
-                
-                // Populate modal with user data
-                $('#editUserId').val(userId);
-                $('#editFullName').val(fullName);
-                $('#editEmail').val(email);
-                $('#editRole').val(roleId);
-                $('#editDepartment').val(departmentId);
-                $('#editJobRole').val(jobRoleId);
-                
-                $('#editChangePasswordModal').modal('show');
-            });
-        });
-
-        // Filter and search functionality
-        const searchInput = document.getElementById('search');
-        const applySearchButton = document.getElementById('applySearch');
-        const filterRoleSelect = document.getElementById('filterRole');
-        const filterDepartmentSelect = document.getElementById('filterDepartment');
-        const filterJobRoleSelect = document.getElementById('filterJobRole');
-        const resetFiltersButton = document.getElementById('resetFilters');
-
-        function applyFilters() {
-            const search = searchInput.value;
-            const filterRole = filterRoleSelect.value;
-            const filterDepartment = filterDepartmentSelect.value;
-            const filterJobRole = filterJobRoleSelect.value;
-
-            const queryParams = new URLSearchParams(window.location.search);
-            queryParams.set('search', search);
-            queryParams.set('filterRole', filterRole);
-            queryParams.set('filterDepartment', filterDepartment);
-            queryParams.set('filterJobRole', filterJobRole);
-            queryParams.set('page', 1); // Reset to first page on filter change
-
-            window.location.search = queryParams.toString();
-        }
-
-        function resetFilters() {
-            searchInput.value = '';
-            filterRoleSelect.value = '';
-            filterDepartmentSelect.value = '';
-            filterJobRoleSelect.value = '';
-            applyFilters();
-        }
-
-        applySearchButton.addEventListener('click', applyFilters);
-        filterRoleSelect.addEventListener('change', applyFilters);
-        filterDepartmentSelect.addEventListener('change', applyFilters);
-        filterJobRoleSelect.addEventListener('change', applyFilters);
-        resetFiltersButton.addEventListener('click', resetFilters);
-
-        // Ensure only the relevant container is shown after actions
-        if (<?php echo json_encode(isset($_POST['delete_user']) || isset($_POST['edit_user'])); ?>) {
-            employeeListContainer.style.display = 'block';
-            createAccountFormContainer.style.display = 'none';
-            changePasswordFormContainer.style.display = 'none';
-            dashboardContent.style.display = 'none';
-        } else if (<?php echo json_encode(isset($_POST['create_account'])); ?>) {
-            createAccountFormContainer.style.display = 'block';
-            employeeListContainer.style.display = 'none';
-            changePasswordFormContainer.style.display = 'none';
-            dashboardContent.style.display = 'none';
-        } else if (<?php echo json_encode(isset($_POST['change_password'])); ?>) {
-            changePasswordFormContainer.style.display = 'block';
-            createAccountFormContainer.style.display = 'none';
-            employeeListContainer.style.display = 'none';
-            dashboardContent.style.display = 'none';
-        } else if (window.location.search.includes('search') || window.location.search.includes('filterRole') || window.location.search.includes('filterDepartment') || window.location.search.includes('filterJobRole')) {
-            // Show employee list if any filter or search is applied
-            employeeListContainer.style.display = 'block';
-            createAccountFormContainer.style.display = 'none';
-            changePasswordFormContainer.style.display = 'none';
-            dashboardContent.style.display = 'none';
-        } else {
-            // Default to showing the dashboard if no specific action is detected
-            dashboardContent.style.display = 'block';
-            createAccountFormContainer.style.display = 'none';
-            employeeListContainer.style.display = 'none';
-            changePasswordFormContainer.style.display = 'none';
-        }
-    </script>
 
     <!-- Modal for Edit/Change Password -->
     <div class="modal fade" id="editChangePasswordModal" tabindex="-1" role="dialog" aria-labelledby="editChangePasswordModalLabel" aria-hidden="true">
@@ -902,7 +634,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['edit_user'])) {
                     </button>
                 </div>
                 <div class="modal-body">
-                    <form id="editChangePasswordForm" method="POST" autocomplete="off">
+                    <form id="editChangePasswordForm" method="POST" autocomplete="off" action='?show=employeeList'>
                         <input type="hidden" id="editUserId" name="user_id">
                         <div class="form-group">
                             <label for="editFullName">Full Name</label>
@@ -954,85 +686,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['edit_user'])) {
         </div>
     </div>
 </div>
-<script src="https://code.jquery.com/jquery-3.5.1.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.5.2/dist/umd/popper.min.js"></script>
-<script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
+
 <script>
-    // Collapsible Employee menu
-    const employeeBtn = document.getElementById('employeeBtn');
-    const employeeSubMenu = document.getElementById('employeeSubMenu');
-    let isOpen = false;
-    employeeBtn.addEventListener('click', function() {
-        isOpen = !isOpen;
-        employeeSubMenu.classList.toggle('show', isOpen);
-        // Rotate chevron
-        const chevron = employeeBtn.querySelector('.fa-chevron-down');
-        if (isOpen) {
-            chevron.style.transform = 'rotate(180deg)';
-        } else {
-            chevron.style.transform = 'rotate(0deg)';
-        }
-    });
-
-    // Show Create Account form on sidebar click
-    const createAccountBtn = document.getElementById('createAccountBtn');
-    const createAccountFormContainer = document.getElementById('createAccountFormContainer');
-    const employeeListContainer = document.getElementById('employeeListContainer');
-    const changePasswordFormContainer = document.getElementById('changePasswordFormContainer');
-    const changePasswordBtn = document.getElementById('changePasswordBtn');
-    const dashboardBtn = document.getElementById('dashboardBtn');
-    const dashboardContent = document.getElementById('dashboardContent');
-    
-    createAccountBtn.addEventListener('click', function() {
-        createAccountFormContainer.style.display = 'block';
-        employeeListContainer.style.display = 'none';
-        dashboardContent.style.display = 'none';
-        changePasswordFormContainer.style.display = 'none';
-    });
-
-    changePasswordBtn.addEventListener('click', function() {
-        changePasswordFormContainer.style.display = 'block';
-        createAccountFormContainer.style.display = 'none';
-        employeeListContainer.style.display = 'none';
-        dashboardContent.style.display = 'none';
-    });
-
-    dashboardBtn.addEventListener('click', function() {
-        dashboardContent.style.display = 'block';
-        createAccountFormContainer.style.display = 'none';
-        employeeListContainer.style.display = 'none';
-        changePasswordFormContainer.style.display = 'none';
-    });
-
-    // Remove success message after 3 seconds
-    function removeMessageAfterDelay(elementId) {
-        const element = document.getElementById(elementId);
-        if (element) {
-            setTimeout(() => {
-                element.style.display = 'none';
-            }, 3000);
-        }
+    function showContent(containerId) {
+        // Hide all containers
+        document.querySelectorAll('.main-content > div').forEach(container => {
+            container.style.display = 'none';
+        });
+        // Show the selected container
+        document.getElementById(containerId).style.display = 'block';
     }
-
-    if (<?php echo json_encode($create_account_success); ?>) {
-        removeMessageAfterDelay('createAccountMsg');
-        createAccountFormContainer.style.display = 'block';
-        employeeListContainer.style.display = 'none';
-    }
-
-    if (<?php echo json_encode($change_password_success); ?>) {
-        removeMessageAfterDelay('changePasswordMsg');
-        changePasswordFormContainer.style.display = 'block';
-        employeeListContainer.style.display = 'none';
-    }
-
-    // Show Employee List on button click
-    employeeBtn.addEventListener('click', function() {
-        employeeListContainer.style.display = 'block';
-        createAccountFormContainer.style.display = 'none';
-        changePasswordFormContainer.style.display = 'none';
-        dashboardContent.style.display = 'none';
-    });
 </script>
-</body>
-</html>
+
+<?php include 'adminFooter.php'; ?>

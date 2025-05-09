@@ -156,7 +156,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             error_log("User Role Name: " . $user['role_name']);
 
             if ((int)$user['role_id'] === (int)$roles['Admin']) {
-                header('Location: views/admin.php');
+                header('Location: admin/admin.php');
                 exit();
             } elseif ((int)$user['role_id'] === (int)$roles['Employee']) {
                 header('Location: views/employee.php');
