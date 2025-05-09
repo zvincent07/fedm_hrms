@@ -356,6 +356,7 @@ $show = $_GET['show'] ?? 'dashboard';
         </div>
         <!-- Employee Submenu -->
         <div class="nav-sub" id="employeeSubMenu" style="display:none; margin-left: 32px;">
+            <a class="nav-sub-item" href="?show=employeeList">User Management</a>
             <a class="nav-sub-item" href="?show=attendance">Attendance</a>
             <a class="nav-sub-item" href="?show=leave">Leave</a>
             <a class="nav-sub-item" href="?show=resignation">Resignation</a>
@@ -437,8 +438,8 @@ $show = $_GET['show'] ?? 'dashboard';
                             <div class="card-header bg-warning text-dark">
                                 <h4>Admin Notices</h4>
                             </div>
-                            <div class="card-body">
-                                <ul class="list-group">
+                            <div class="card-body" style="max-height: 240px;">
+                                <ul class="list-group" style="max-height: 200px; overflow-y: auto;">
                                     <?php if (empty($admin_notices)): ?>
                                         <li class="list-group-item">No notices available</li>
                                     <?php else: ?>
@@ -459,9 +460,9 @@ $show = $_GET['show'] ?? 'dashboard';
                             <div class="card-header bg-info text-white">
                                 <h4>Employees Overview</h4>
                             </div>
-                            <div class="card-body">
+                            <div class="card-body" style="max-height: 240px;">
                                 <p class="mt-3">Total Employees: <?= $total_employees ?></p>
-                                <ul class="list-group mt-3">
+                                <ul class="list-group mt-3" style="max-height: 150px; overflow-y: auto;">
                                     <?php if (empty($employees_overview)): ?>
                                         <li class="list-group-item">No data available</li>
                                     <?php else: ?>
@@ -480,8 +481,8 @@ $show = $_GET['show'] ?? 'dashboard';
                             <div class="card-header bg-secondary text-white">
                                 <h4>Activity Logs</h4>
                             </div>
-                            <div class="card-body">
-                                <ul class="list-group">
+                            <div class="card-body" style="max-height: 240px;">
+                                <ul class="list-group" style="max-height: 200px; overflow-y: auto;">
                                     <?php if (empty($activity_logs)): ?>
                                         <li class="list-group-item">No activity logs available</li>
                                     <?php else: ?>
@@ -606,21 +607,24 @@ $show = $_GET['show'] ?? 'dashboard';
                 <ul class="pagination justify-content-center">
                     <li class="page-item <?php if($activity_page <= 1){ echo 'disabled'; } ?>">
                         <a class="page-link" href="<?php
-                            $params = $_GET; $params['activity_page'] = $activity_page - 1;
+                            $params = $_GET;
+                            $params['activity_page'] = $activity_page - 1;
                             echo ($activity_page > 1) ? '?' . http_build_query($params) : '#';
                         ?>">Previous</a>
                     </li>
                     <?php for($i = 1; $i <= $activity_total_pages; $i++): ?>
                         <li class="page-item <?php if($activity_page == $i){ echo 'active'; } ?>">
                             <a class="page-link" href="<?php
-                                $params = $_GET; $params['activity_page'] = $i;
+                                $params = $_GET;
+                                $params['activity_page'] = $i;
                                 echo '?' . http_build_query($params);
                             ?>"><?php echo $i; ?></a>
                         </li>
                     <?php endfor; ?>
                     <li class="page-item <?php if($activity_page >= $activity_total_pages){ echo 'disabled'; } ?>">
                         <a class="page-link" href="<?php
-                            $params = $_GET; $params['activity_page'] = $activity_page + 1;
+                            $params = $_GET;
+                            $params['activity_page'] = $activity_page + 1;
                             echo ($activity_page < $activity_total_pages) ? '?' . http_build_query($params) : '#';
                         ?>">Next</a>
                     </li>
@@ -832,15 +836,27 @@ $show = $_GET['show'] ?? 'dashboard';
             <nav aria-label="Page navigation">
                 <ul class="pagination justify-content-center">
                     <li class="page-item <?php if($page <= 1){ echo 'disabled'; } ?>">
-                        <a class="page-link" href="<?php if($page > 1){ echo '?page=' . ($page - 1); } else { echo '#'; } ?>" data-page="<?php echo $page - 1; ?>">Previous</a>
+                        <a class="page-link" href="<?php 
+                            $params = $_GET;
+                            $params['page'] = $page - 1;
+                            echo ($page > 1) ? '?' . http_build_query($params) : '#';
+                        ?>" data-page="<?php echo $page - 1; ?>">Previous</a>
                     </li>
                     <?php for($i = 1; $i <= $totalPages; $i++): ?>
                         <li class="page-item <?php if($page == $i){ echo 'active'; } ?>">
-                        <a class="page-link" href="?page=<?php echo $i; ?>&show=employeeList" data-page="<?php echo $i; ?>"><?php echo $i; ?></a>
+                            <a class="page-link" href="<?php 
+                                $params = $_GET;
+                                $params['page'] = $i;
+                                echo '?' . http_build_query($params);
+                            ?>" data-page="<?php echo $i; ?>"><?php echo $i; ?></a>
                         </li>
                     <?php endfor; ?>
                     <li class="page-item <?php if($page >= $totalPages){ echo 'disabled'; } ?>">
-                        <a class="page-link" href="<?php if($page < $totalPages){ echo '?page=' . ($page + 1); } else { echo '#'; } ?>" data-page="<?php echo $page + 1; ?>">Next</a>
+                        <a class="page-link" href="<?php 
+                            $params = $_GET;
+                            $params['page'] = $page + 1;
+                            echo ($page < $totalPages) ? '?' . http_build_query($params) : '#';
+                        ?>" data-page="<?php echo $page + 1; ?>">Next</a>
                     </li>
                 </ul>
             </nav>
