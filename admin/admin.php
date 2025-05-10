@@ -393,8 +393,58 @@ $show = $_GET['show'] ?? 'dashboard';
 <div class="main-content" id="mainContentArea">
 
     <?php if ($show === 'dashboard'): ?>
+        <?php
+            $employee_count = 0;
+            $sql = "SELECT COUNT(*) as total FROM user_account WHERE role_id = 2";
+            $result = mysqli_query($conn, $sql);
+            if ($result && $row = mysqli_fetch_assoc($result)) {
+                $employee_count = (int)$row['total'];
+            }
+        
+            // Static values for leaves and resignations for now
+            $leave_count = 8;
+            $resignation_count = 7;
+        ?>
         <div id="dashboardContent" style="display: block;">
             <h3 class="dashboard-title">Welcome to the Dashboard</h3>
+            
+            <!-- Dashboard Summary Cards (Centered) -->
+            <div class="d-flex justify-content-center mb-4" style="gap: 12px;">
+                <div class="col-auto px-0" style="float:none;">
+                    <div style="background: #FFD600; border-radius: 12px; padding: 18px 32px 14px 18px; min-width: 180px; display: flex; align-items: center; gap: 16px;">
+                        <span style="font-size: 2.5rem; color: #111;">
+                            <i class="fa-solid fa-user"></i>
+                        </span>
+                        <div>
+                            <div style="font-size: 2rem; font-weight: bold; color: #111; line-height: 1;"><?= $employee_count ?></div>
+                            <div style="font-size: 1.1rem; color: #222; font-weight: 500;">Employees</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-auto px-0" style="float:none;">
+                    <div style="background: #283C7A; border-radius: 12px; padding: 18px 32px 14px 18px; min-width: 180px; display: flex; align-items: center; gap: 16px;">
+                        <span style="font-size: 2.5rem; color: #fff;">
+                            <i class="fa-solid fa-book-open"></i>
+                        </span>
+                        <div>
+                            <div style="font-size: 2rem; font-weight: bold; color: #fff; line-height: 1;"><?= $leave_count ?></div>
+                            <div style="font-size: 1.1rem; color: #fff; font-weight: 500;">Leaves</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-auto px-0" style="float:none;">
+                    <div style="background: #388E3C; border-radius: 12px; padding: 18px 32px 14px 18px; min-width: 180px; display: flex; align-items: center; gap: 16px;">
+                        <span style="font-size: 2.5rem; color: #fff;">
+                            <i class="fa-solid fa-money-bill-wave"></i>
+                        </span>
+                        <div>
+                            <div style="font-size: 2rem; font-weight: bold; color: #fff; line-height: 1;"><?= $resignation_count ?></div>
+                            <div style="font-size: 1.1rem; color: #fff; font-weight: 500;">Resignation</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
             <div class="container mt-4">
                 <div class="row">
                     <!-- Attendance Monitoring -->
