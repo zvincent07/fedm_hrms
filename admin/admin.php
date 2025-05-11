@@ -352,6 +352,64 @@ $activity_total_row = mysqli_fetch_assoc($activity_total_result);
 $activity_total_pages = ceil($activity_total_row['total'] / $activity_limit);
 
 $show = $_GET['show'] ?? 'dashboard';
+
+// Attendance Monitoring: all attendance for current date
+$attendance_today = [];
+$attendance_query = "SELECT a.*, ua.full_name, d.name AS department_name 
+    FROM attendance a 
+    JOIN user_account ua ON a.employee_id = ua.user_id 
+    LEFT JOIN department d ON ua.department_id = d.department_id 
+    WHERE a.date = CURDATE() 
+    ORDER BY a.check_in ASC";
+$attendance_result = mysqli_query($conn, $attendance_query);
+if ($attendance_result) {
+    while ($row = mysqli_fetch_assoc($attendance_result)) {
+        $attendance_today[] = $row;
+    }
+}
+
+// Leave Management: all pending leave requests
+$pending_leaves = [];
+$leave_query = "SELECT lr.*, ua.full_name, d.name AS department_name 
+    FROM leave_request lr 
+    JOIN user_account ua ON lr.employee_id = ua.user_id 
+    LEFT JOIN department d ON ua.department_id = d.department_id 
+    WHERE lr.status = 'pending' 
+    ORDER BY lr.requested_at DESC";
+$leave_result = mysqli_query($conn, $leave_query);
+if ($leave_result) {
+    while ($row = mysqli_fetch_assoc($leave_result)) {
+        $pending_leaves[] = $row;
+    }
+}
+
+// Resignations: all pending
+$pending_resignations = [];
+$resignation_query = "SELECT r.*, ua.full_name, d.name AS department_name 
+    FROM resignation r 
+    JOIN user_account ua ON r.employee_id = ua.user_id 
+    LEFT JOIN department d ON ua.department_id = d.department_id 
+    WHERE r.status = 'pending' 
+    ORDER BY r.submitted_at DESC";
+$resignation_result = mysqli_query($conn, $resignation_query);
+if ($resignation_result) {
+    while ($row = mysqli_fetch_assoc($resignation_result)) {
+        $pending_resignations[] = $row;
+    }
+}
+
+// Recent Notices: top 5 from notification table
+$recent_notifications = [];
+$notif_query = "SELECT n.title, n.content, n.type, n.created_at, ua.full_name as sender_name 
+    FROM notification n 
+    LEFT JOIN user_account ua ON n.sender_id = ua.user_id 
+    ORDER BY n.created_at DESC LIMIT 5";
+$notif_result = mysqli_query($conn, $notif_query);
+if ($notif_result) {
+    while ($row = mysqli_fetch_assoc($notif_result)) {
+        $recent_notifications[] = $row;
+    }
+}
 ?>
 
 <?php include 'adminHeader.php'; ?>
@@ -412,20 +470,70 @@ $show = $_GET['show'] ?? 'dashboard';
 
     <?php if ($show === 'dashboard'): ?>
         <?php
-            $employee_count = 0;
-            $sql = "SELECT COUNT(*) as total FROM user_account WHERE role_id = 2";
-            $result = mysqli_query($conn, $sql);
-            if ($result && $row = mysqli_fetch_assoc($result)) {
-                $employee_count = (int)$row['total'];
+        // Total Employees (role = 'Employee')
+        $employee_count = 0;
+        $sql = "SELECT COUNT(*) as total FROM user_account ua JOIN role r ON ua.role_id = r.role_id WHERE r.name = 'Employee'";
+        $result = mysqli_query($conn, $sql);
+        if ($result && $row = mysqli_fetch_assoc($result)) {
+            $employee_count = (int)$row['total'];
+        }
+
+        // Total Departments
+        $department_count = 0;
+        $sql = "SELECT COUNT(*) as total FROM department";
+        $result = mysqli_query($conn, $sql);
+        if ($result && $row = mysqli_fetch_assoc($result)) {
+            $department_count = (int)$row['total'];
+        }
+
+        // Resignations this month (status = 'approved')
+        $resignation_count = 0;
+        $sql = "SELECT COUNT(*) as total FROM resignation WHERE status = 'approved' AND MONTH(submitted_at) = MONTH(CURDATE()) AND YEAR(submitted_at) = YEAR(CURDATE())";
+        $result = mysqli_query($conn, $sql);
+        if ($result && $row = mysqli_fetch_assoc($result)) {
+            $resignation_count = (int)$row['total'];
+        }
+
+        // Recent Admin Notices (limit 10)
+        $admin_notices = [];
+        $notice_query = "SELECT an.title, an.message, an.created_at, ua.full_name as sender_name FROM admin_notice an LEFT JOIN user_account ua ON an.sender_id = ua.user_id ORDER BY an.created_at DESC LIMIT 10";
+        $notice_result = mysqli_query($conn, $notice_query);
+        if ($notice_result) {
+            while ($row = mysqli_fetch_assoc($notice_result)) {
+                $admin_notices[] = $row;
             }
-        
-            // Static values for leaves and resignations for now
-            $leave_count = 8;
-            $resignation_count = 7;
+        }
+
+        // Employees Overview by Department
+        $employees_overview = [];
+        $employees_query = "SELECT d.name as department, COUNT(ua.user_id) as count FROM user_account ua JOIN department d ON ua.department_id = d.department_id JOIN role r ON ua.role_id = r.role_id WHERE r.name = 'Employee' GROUP BY d.name";
+        $employees_result = mysqli_query($conn, $employees_query);
+        if ($employees_result) {
+            while ($row = mysqli_fetch_assoc($employees_result)) {
+                $employees_overview[] = $row;
+            }
+        }
+
+        // Total Employees (again, for Employees Overview)
+        $total_employees = 0;
+        $sql = "SELECT COUNT(*) as total FROM user_account ua JOIN role r ON ua.role_id = r.role_id WHERE r.name = 'Employee'";
+        $result = mysqli_query($conn, $sql);
+        if ($result && $row = mysqli_fetch_assoc($result)) {
+            $total_employees = (int)$row['total'];
+        }
+
+        // Recent Activity Logs (limit 10)
+        $activity_logs = [];
+        $activity_query = "SELECT al.*, ua.full_name AS user_name FROM activity_log al LEFT JOIN user_account ua ON al.user_id = ua.user_id ORDER BY al.created_at DESC LIMIT 10";
+        $activity_result = mysqli_query($conn, $activity_query);
+        if ($activity_result) {
+            while ($row = mysqli_fetch_assoc($activity_result)) {
+                $activity_logs[] = $row;
+            }
+        }
         ?>
         <div id="dashboardContent" style="display: block;">
             <h3 class="dashboard-title mb-5">Welcome to the Dashboard</h3>
-            
             <!-- Dashboard Summary Cards (Fully Centered) -->
             <div style="display: flex; justify-content: center; align-items: center; width: 100%;">
                 <div class="d-flex mb-5" style="gap: 24px; width: 95%; justify-content: center; align-items: center; text-align: center;">
@@ -448,7 +556,7 @@ $show = $_GET['show'] ?? 'dashboard';
                                 <i class="fa-solid fa-building"></i>
                             </span>
                             <div>
-                                <div style="font-size: 2.2rem; font-weight: bold; color: #fff; line-height: 1;"><?= $leave_count ?></div>
+                                <div style="font-size: 2.2rem; font-weight: bold; color: #fff; line-height: 1;"><?= $department_count ?></div>
                                 <div style="font-size: 1rem; color: #fff; font-weight: 700; margin-top: 2px;">Departments</div>
                             </div>
                         </div>
@@ -467,47 +575,116 @@ $show = $_GET['show'] ?? 'dashboard';
                     </div>
                 </div>
             </div>
-            
             <div class="container mt-4">
                 <div class="row">
-                    <!-- Attendance Monitoring -->
+                    <!-- Attendance Monitoring (placeholder) -->
                     <div class="col-md-6">
                         <div class="card shadow-sm mb-4">
                             <div class="card-header bg-primary text-white">
                                 <h4>Attendance Monitoring</h4>
                             </div>
-                            <div class="card-body">
-                                <canvas id="attendanceChart"></canvas>
+                            <div class="card-body" style="max-height: 240px; overflow-y: auto;">
+                                <?php if (empty($attendance_today)): ?>
+                                    <div class="text-center text-muted">No attendance records for today.</div>
+                                <?php else: ?>
+                                    <table class="table table-sm table-bordered mb-0">
+                                        <thead>
+                                            <tr>
+                                                <th>Name</th>
+                                                <th>Department</th>
+                                                <th>Check In</th>
+                                                <th>Check Out</th>
+                                                <th>Status</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            <?php foreach ($attendance_today as $row): ?>
+                                                <tr>
+                                                    <td><?= htmlspecialchars($row['full_name']) ?></td>
+                                                    <td><?= htmlspecialchars($row['department_name'] ?? '-') ?></td>
+                                                    <td><?= $row['check_in'] ? date('g:i A', strtotime($row['check_in'])) : '-' ?></td>
+                                                    <td><?= $row['check_out'] ? date('g:i A', strtotime($row['check_out'])) : '-' ?></td>
+                                                    <td><?= ucfirst($row['status']) ?></td>
+                                                </tr>
+                                            <?php endforeach; ?>
+                                        </tbody>
+                                    </table>
+                                <?php endif; ?>
                             </div>
                         </div>
                     </div>
-                    
-                    <!-- Leave Management -->
+                    <!-- Leave Management (placeholder) -->
                     <div class="col-md-6">
                         <div class="card shadow-sm mb-4">
                             <div class="card-header bg-success text-white">
                                 <h4>Leave Management</h4>
                             </div>
-                            <div class="card-body">
-                                <canvas id="leaveChart"></canvas>
+                            <div class="card-body" style="max-height: 240px; overflow-y: auto;">
+                                <?php if (empty($pending_leaves)): ?>
+                                    <div class="text-center text-muted">No pending leave requests.</div>
+                                <?php else: ?>
+                                    <table class="table table-sm table-bordered mb-0">
+                                        <thead>
+                                            <tr>
+                                                <th>Name</th>
+                                                <th>Department</th>
+                                                <th>Start</th>
+                                                <th>End</th>
+                                                <th>Reason</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            <?php foreach ($pending_leaves as $row): ?>
+                                                <tr>
+                                                    <td><?= htmlspecialchars($row['full_name']) ?></td>
+                                                    <td><?= htmlspecialchars($row['department_name'] ?? '-') ?></td>
+                                                    <td><?= htmlspecialchars($row['start_date']) ?></td>
+                                                    <td><?= htmlspecialchars($row['end_date']) ?></td>
+                                                    <td><?= htmlspecialchars($row['reason']) ?></td>
+                                                </tr>
+                                            <?php endforeach; ?>
+                                        </tbody>
+                                    </table>
+                                <?php endif; ?>
                             </div>
                         </div>
                     </div>
                 </div>
-                
                 <div class="row mt-4">
-                    <!-- Resignations -->
+                    <!-- Resignations (placeholder) -->
                     <div class="col-md-6">
                         <div class="card shadow-sm mb-4">
                             <div class="card-header bg-danger text-white">
                                 <h4>Resignations</h4>
                             </div>
-                            <div class="card-body">
-                                <canvas id="resignationChart"></canvas>
+                            <div class="card-body" style="max-height: 240px; overflow-y: auto;">
+                                <?php if (empty($pending_resignations)): ?>
+                                    <div class="text-center text-muted">No pending resignation requests.</div>
+                                <?php else: ?>
+                                    <table class="table table-sm table-bordered mb-0">
+                                        <thead>
+                                            <tr>
+                                                <th>Name</th>
+                                                <th>Department</th>
+                                                <th>Reason</th>
+                                                <th>Submitted</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            <?php foreach ($pending_resignations as $row): ?>
+                                                <tr>
+                                                    <td><?= htmlspecialchars($row['full_name']) ?></td>
+                                                    <td><?= htmlspecialchars($row['department_name'] ?? '-') ?></td>
+                                                    <td><?= htmlspecialchars($row['reason']) ?></td>
+                                                    <td><?= date('M d, Y', strtotime($row['submitted_at'])) ?></td>
+                                                </tr>
+                                            <?php endforeach; ?>
+                                        </tbody>
+                                    </table>
+                                <?php endif; ?>
                             </div>
                         </div>
                     </div>
-                    
                     <!-- Admin Notices -->
                     <div class="col-md-6">
                         <div class="card shadow-sm mb-4">
@@ -515,11 +692,11 @@ $show = $_GET['show'] ?? 'dashboard';
                                 <h4>Recent Notices</h4>
                             </div>
                             <div class="card-body" style="max-height: 240px; overflow-y: auto;">
-                                <?php if (empty($admin_notices)): ?>
-                                    <div class="text-center text-muted">No notices available</div>
+                                <?php if (empty($recent_notifications)): ?>
+                                    <div class="text-center text-muted">No notifications available</div>
                                 <?php else: ?>
                                     <div class="list-group">
-                                        <?php foreach ($admin_notices as $notice): ?>
+                                        <?php foreach ($recent_notifications as $notice): ?>
                                             <div class="list-group-item">
                                                 <div class="d-flex w-100 justify-content-between">
                                                     <h6 class="mb-1"><?= htmlspecialchars($notice['title']) ?></h6>
@@ -527,9 +704,6 @@ $show = $_GET['show'] ?? 'dashboard';
                                                 </div>
                                                 <p class="mb-1"><?= htmlspecialchars($notice['content']) ?></p>
                                                 <div class="d-flex justify-content-between align-items-center">
-                                                    <small class="text-muted">
-                                                        <span class="badge bg-info"><?= htmlspecialchars($notice['type']) ?></span>
-                                                    </small>
                                                     <small class="text-muted">
                                                         Sent by: <?= htmlspecialchars($notice['sender_name']) ?>
                                                     </small>
@@ -542,7 +716,6 @@ $show = $_GET['show'] ?? 'dashboard';
                         </div>
                     </div>
                 </div>
-                
                 <div class="row mt-4">
                     <!-- Employees Overview -->
                     <div class="col-md-6">
@@ -564,7 +737,6 @@ $show = $_GET['show'] ?? 'dashboard';
                             </div>
                         </div>
                     </div>
-                    
                     <!-- Activity Logs -->
                     <div class="col-md-6">
                         <div class="card shadow-sm mb-4">
@@ -616,8 +788,8 @@ $show = $_GET['show'] ?? 'dashboard';
             </div>
             <div class="table-responsive">
                 <table class="table table-striped">
-                    <thead>
-                        <tr>
+                                        <thead>
+                                            <tr>
                             <th>Name(s)</th>
                             <th>Date</th>
                             <th>Time In</th>
@@ -900,7 +1072,7 @@ $show = $_GET['show'] ?? 'dashboard';
                             <th>Status</th>
                             <th>Submitted At</th>
                             <th>Action</th>
-                        </tr>
+                                                </tr>
                     </thead>
                     <tbody>
                     <?php
@@ -1227,7 +1399,7 @@ $show = $_GET['show'] ?? 'dashboard';
                                             <input class="form-check-input department-checkbox" type="checkbox" id="dept<?= $dept['department_id'] ?>" name="departments[]" value="<?= $dept['department_id'] ?>">
                                             <label class="form-check-label" for="dept<?= $dept['department_id'] ?>"> <?= htmlspecialchars($dept['name']) ?> </label>
                                         </div>
-                                    <?php endforeach; ?>
+                                            <?php endforeach; ?>
                                 </div>
                             </div>
                             <div class="form-group mb-3">
@@ -1356,8 +1528,8 @@ $show = $_GET['show'] ?? 'dashboard';
                                 </tr>
                             <?php endforeach; ?>
                         <?php endif; ?>
-                    </tbody>
-                </table>
+                                        </tbody>
+                                    </table>
             </div>
             <nav aria-label="Activity log page navigation">
                 <ul class="pagination justify-content-center">
@@ -1387,7 +1559,7 @@ $show = $_GET['show'] ?? 'dashboard';
                 </ul>
             </nav>
         </div>
-    <?php endif; ?>
+                                <?php endif; ?>
 
     <?php if ($show === 'createAccount'): ?>
         <div id="createAccountFormContainer" style="display: block;">
@@ -1399,15 +1571,15 @@ $show = $_GET['show'] ?? 'dashboard';
                 <div class="form-group">
                     <label for="fullName">Full Name</label>
                     <input type="text" class="form-control" id="fullName" name="fullName" required>
-                </div>
+                            </div>
                 <div class="form-group">
                     <label for="email">Email</label>
                     <input type="email" class="form-control" id="email" name="email" required>
-                </div>
+                        </div>
                 <div class="form-group">
                     <label for="password">Password</label>
                     <input type="password" class="form-control" id="password" name="password" required>
-                </div>
+                    </div>
                 <div class="form-group">
                     <label for="role">Role</label>
                     <select class="form-control" id="role" name="role" required>
