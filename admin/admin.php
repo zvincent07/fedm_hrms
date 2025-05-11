@@ -346,6 +346,12 @@ $show = $_GET['show'] ?? 'dashboard';
 <?php include 'adminHeader.php'; ?>
 
 <div class="sidebar">
+    <!-- Added top icon for sidebar -->
+    <div style="display: flex; flex-direction: column; align-items: center; margin-top: 28px;">
+        <div style="background: #b30000; border-radius: 50%; width: 104px; height: 104px; display: flex; align-items: center; justify-content: center;">
+            <i class="fa-solid fa-user" style="color: #fff; font-size: 3.6rem;"></i>
+        </div>
+    </div>
     <div class="nav-section">
         <a class="nav-item" id="dashboardBtn" href="?show=dashboard">
             <i class="fa-solid fa-map"></i>
@@ -390,6 +396,7 @@ $show = $_GET['show'] ?? 'dashboard';
         </form>
     </div>
 </div>
+
 <div class="main-content" id="mainContentArea">
 
     <?php if ($show === 'dashboard'): ?>
@@ -406,40 +413,45 @@ $show = $_GET['show'] ?? 'dashboard';
             $resignation_count = 7;
         ?>
         <div id="dashboardContent" style="display: block;">
-            <h3 class="dashboard-title">Welcome to the Dashboard</h3>
+            <h3 class="dashboard-title mb-5">Welcome to the Dashboard</h3>
             
-            <!-- Dashboard Summary Cards (Centered) -->
-            <div class="d-flex justify-content-center mb-4" style="gap: 12px;">
-                <div class="col-auto px-0" style="float:none;">
-                    <div style="background: #FFD600; border-radius: 12px; padding: 18px 32px 14px 18px; min-width: 180px; display: flex; align-items: center; gap: 16px;">
-                        <span style="font-size: 2.5rem; color: #111;">
-                            <i class="fa-solid fa-user"></i>
-                        </span>
-                        <div>
-                            <div style="font-size: 2rem; font-weight: bold; color: #111; line-height: 1;"><?= $employee_count ?></div>
-                            <div style="font-size: 1.1rem; color: #222; font-weight: 500;">Employees</div>
+            <!-- Dashboard Summary Cards (Fully Centered) -->
+            <div style="display: flex; justify-content: center; align-items: center; width: 100%;">
+                <div class="d-flex mb-5" style="gap: 24px; width: 95%; justify-content: center; align-items: center; text-align: center;">
+                    <!-- Employees Card -->
+                    <div style="flex:1; max-width: 330px; min-width: 270px; display: flex; justify-content: center;">
+                        <div style="background: #e5d6d6; border-radius: 18px; padding: 28px 0 22px 0; width: 100%; height: 170px; display: flex; align-items: center; gap: 20px; box-shadow: 0 2px 12px rgba(0,0,0,0.07); justify-content: center;">
+                            <span style="font-size: 3rem; color: #111; margin-right: 8px;">
+                                <i class="fa-solid fa-user"></i>
+                            </span>
+                            <div>
+                                <div style="font-size: 2.2rem; font-weight: bold; color: #111; line-height: 1;"><?= $employee_count ?></div>
+                                <div style="font-size: 1rem; color: #111; font-weight: 700; margin-top: 2px;">Total Number of<br>Employees</div>
+                            </div>
                         </div>
                     </div>
-                </div>
-                <div class="col-auto px-0" style="float:none;">
-                    <div style="background: #283C7A; border-radius: 12px; padding: 18px 32px 14px 18px; min-width: 180px; display: flex; align-items: center; gap: 16px;">
-                        <span style="font-size: 2.5rem; color: #fff;">
-                            <i class="fa-solid fa-book-open"></i>
-                        </span>
-                        <div>
-                            <div style="font-size: 2rem; font-weight: bold; color: #fff; line-height: 1;"><?= $leave_count ?></div>
-                            <div style="font-size: 1.1rem; color: #fff; font-weight: 500;">Leaves</div>
+                    <!-- Departments Card -->
+                    <div style="flex:1; max-width: 330px; min-width: 270px; display: flex; justify-content: center;">
+                        <div style="background: #8B0000; border-radius: 18px; padding: 28px 0 22px 0; width: 100%; height: 170px; display: flex; align-items: center; gap: 20px; box-shadow: 0 2px 12px rgba(0,0,0,0.07); justify-content: center;">
+                            <span style="font-size: 3rem; color: #fff; margin-right: 8px;">
+                                <i class="fa-solid fa-book-open"></i>
+                            </span>
+                            <div>
+                                <div style="font-size: 2.2rem; font-weight: bold; color: #fff; line-height: 1;"><?= $leave_count ?></div>
+                                <div style="font-size: 1rem; color: #fff; font-weight: 700; margin-top: 2px;">Departments</div>
+                            </div>
                         </div>
                     </div>
-                </div>
-                <div class="col-auto px-0" style="float:none;">
-                    <div style="background: #388E3C; border-radius: 12px; padding: 18px 32px 14px 18px; min-width: 180px; display: flex; align-items: center; gap: 16px;">
-                        <span style="font-size: 2.5rem; color: #fff;">
-                            <i class="fa-solid fa-money-bill-wave"></i>
-                        </span>
-                        <div>
-                            <div style="font-size: 2rem; font-weight: bold; color: #fff; line-height: 1;"><?= $resignation_count ?></div>
-                            <div style="font-size: 1.1rem; color: #fff; font-weight: 500;">Resignation</div>
+                    <!-- Resignation Card -->
+                    <div style="flex:1; max-width: 330px; min-width: 270px; display: flex; justify-content: center;">
+                        <div style="background: #B22222; border-radius: 18px; padding: 28px 0 22px 0; width: 100%; height: 170px; display: flex; align-items: center; gap: 20px; box-shadow: 0 2px 12px rgba(0,0,0,0.07); justify-content: center;">
+                            <span style="font-size: 3rem; color: #fff; margin-right: 8px;">
+                                <i class="fa-solid fa-money-bill-wave"></i>
+                            </span>
+                            <div>
+                                <div style="font-size: 2.2rem; font-weight: bold; color: #fff; line-height: 1;"><?= $resignation_count ?></div>
+                                <div style="font-size: 1rem; color: #fff; font-weight: 700; margin-top: 2px;">Resignation<br>this Month</div>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -876,7 +888,6 @@ $show = $_GET['show'] ?? 'dashboard';
         });
         </script>
     <?php endif; ?>
-
 
     <?php if ($show === 'activityLogs'): ?>
         <div id="activityLogsContainer" style="display: block;">
