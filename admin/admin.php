@@ -245,13 +245,18 @@ if ($attendance_result) {
 }
 
 // Fetch leave requests
-$leave_query = "SELECT status, COUNT(*) as count FROM leave_request WHERE start_date <= CURDATE() AND end_date >= CURDATE() GROUP BY status";
+$leave_query = "SELECT lr.*, ua.full_name, d.name AS department_name 
+    FROM leave_request lr 
+    JOIN user_account ua ON lr.employee_id = ua.user_id 
+    LEFT JOIN department d ON ua.department_id = d.department_id 
+    WHERE lr.status = 'pending' 
+    ORDER BY lr.requested_at DESC";
 $leave_result = mysqli_query($conn, $leave_query);
-if ($leave_result) {
-    while ($row = mysqli_fetch_assoc($leave_result)) {
-        $leave_requests[$row['status']] = $row['count'];
-    }
-}
+// if ($leave_result) {
+//     while ($row = mysqli_fetch_assoc($leave_result)) {
+//         $leave_requests[$row['status']] = $row['count'];
+//     }
+// }
 
 // Fetch resignations
 $resignation_query = "SELECT status, COUNT(*) as count FROM resignation GROUP BY status";
@@ -687,18 +692,35 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_attendance']))
                                             <tr>
                                                 <th>Name</th>
                                                 <th>Department</th>
-                                                <th>Start</th>
-                                                <th>End</th>
+                                                <th>Type</th>
+                                                <th>Start Date</th>
+                                                <th>End Date</th>
+                                                <th>Duration</th>
+                                                <th>Hand Over Document</th>
                                                 <th>Reason</th>
                                             </tr>
                                         </thead>
                                         <tbody>
                                             <?php foreach ($pending_leaves as $row): ?>
+                                                <?php
+                                                    $start = new DateTime($row['start_date']);
+                                                    $end = new DateTime($row['end_date']);
+                                                    $duration = $start->diff($end)->days + 1; // inclusive
+                                                ?>
                                                 <tr>
                                                     <td><?= htmlspecialchars($row['full_name']) ?></td>
                                                     <td><?= htmlspecialchars($row['department_name'] ?? '-') ?></td>
+                                                    <td><?= htmlspecialchars($row['type'] ?? '-') ?></td>
                                                     <td><?= htmlspecialchars($row['start_date']) ?></td>
                                                     <td><?= htmlspecialchars($row['end_date']) ?></td>
+                                                    <td><?= $duration ?> day(s)</td>
+                                                    <td>
+                                                        <?php if (!empty($row['hand_over_document'])): ?>
+                                                            <a href="<?= htmlspecialchars($row['hand_over_document']) ?>" target="_blank">View</a>
+                                                        <?php else: ?>
+                                                            -
+                                                        <?php endif; ?>
+                                                    </td>
                                                     <td><?= htmlspecialchars($row['reason']) ?></td>
                                                 </tr>
                                             <?php endforeach; ?>
@@ -1008,8 +1030,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_attendance']))
                         <tr>
                             <th>Name(s)</th>
                             <th>Department</th>
+                            <th>Type</th>
                             <th>Start Date</th>
                             <th>End Date</th>
+                            <th>Duration</th>
+                            <th>Hand Over Document</th>
                             <th>Reason</th>
                             <th>Status</th>
                             <th>Action</th>
@@ -1041,15 +1066,32 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_attendance']))
                         $esc = mysqli_real_escape_string($conn, $leave_department);
                         $where .= " AND ua.department_id = '$esc'";
                     }
-                    $leave_query = "SELECT lr.*, ua.full_name, d.name AS department_name FROM leave_request lr JOIN user_account ua ON lr.employee_id = ua.user_id LEFT JOIN department d ON ua.department_id = d.department_id WHERE $where ORDER BY lr.requested_at DESC, lr.leave_id DESC LIMIT $limit OFFSET $offset";
+                    $leave_query = "SELECT lr.*, ua.full_name, d.name AS department_name 
+    FROM leave_request lr 
+    JOIN user_account ua ON lr.employee_id = ua.user_id 
+    LEFT JOIN department d ON ua.department_id = d.department_id 
+    WHERE $where 
+    ORDER BY lr.requested_at DESC, lr.leave_id DESC 
+    LIMIT $limit OFFSET $offset";
                     $leave_result = mysqli_query($conn, $leave_query);
                     if ($leave_result && mysqli_num_rows($leave_result) > 0) {
                         while ($row = mysqli_fetch_assoc($leave_result)) {
+                            $start = new DateTime($row['start_date']);
+                            $end = new DateTime($row['end_date']);
+                            $duration = $start->diff($end)->days + 1; // inclusive
+
                             echo "<tr>";
                             echo "<td>" . htmlspecialchars($row['full_name']) . "</td>";
                             echo "<td>" . htmlspecialchars($row['department_name'] ?? '-') . "</td>";
+                            echo "<td>" . htmlspecialchars($row['type'] ?? '-') . "</td>";
                             echo "<td>" . htmlspecialchars($row['start_date']) . "</td>";
                             echo "<td>" . htmlspecialchars($row['end_date']) . "</td>";
+                            echo "<td>" . $duration . " day(s)</td>";
+                            if (!empty($row['hand_over_document'])) {
+                                echo "<td><a href='" . htmlspecialchars($row['hand_over_document']) . "' target='_blank'>View</a></td>";
+                            } else {
+                                echo "<td>-</td>";
+                            }
                             echo "<td>" . htmlspecialchars($row['reason']) . "</td>";
                             echo "<td>" . ucfirst($row['status']) . "</td>";
                             echo '<td>';
@@ -1067,7 +1109,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_attendance']))
                             echo "</tr>";
                         }
                     } else {
-                        echo '<tr><td colspan="7" class="text-center">No leave requests found.</td></tr>';
+                        echo '<tr><td colspan="11" class="text-center">No leave requests found.</td></tr>';
                     }
                     // Pagination
                     $count_query = "SELECT COUNT(*) as total FROM leave_request lr JOIN user_account ua ON lr.employee_id = ua.user_id LEFT JOIN department d ON ua.department_id = d.department_id WHERE $where";
@@ -1216,7 +1258,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_attendance']))
                             echo "</tr>";
                         }
                     } else {
-                        echo '<tr><td colspan="6" class="text-center">No resignation requests found.</td></tr>';
+                        echo '<tr><td colspan="12" class="text-center">No resignation requests found.</td></tr>';
                     }
                     // Pagination
                     $count_query = "SELECT COUNT(*) as total FROM resignation r JOIN user_account ua ON r.employee_id = ua.user_id LEFT JOIN department d ON ua.department_id = d.department_id WHERE $where";
