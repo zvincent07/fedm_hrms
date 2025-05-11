@@ -433,6 +433,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['view_attendance'])) {
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_attendance'])) {
     $attendance_id = intval($_POST['attendance_id']);
     $time_in = $_POST['time_in'];
+    $status = mysqli_real_escape_string($conn, $_POST['status']);
     
     // Get current attendance record
     $current_query = "SELECT a.*, ua.full_name FROM attendance a 
@@ -441,15 +442,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_attendance']))
     $current_result = mysqli_query($conn, $current_query);
     $current_record = mysqli_fetch_assoc($current_result);
     
-    // Update the time in
-    $update_query = "UPDATE attendance SET check_in = '$time_in' WHERE attendance_id = $attendance_id";
+    // Update both time in and status
+    $update_query = "UPDATE attendance SET check_in = '$time_in', status = '$status' WHERE attendance_id = $attendance_id";
     if (mysqli_query($conn, $update_query)) {
         // Log the activity
-        $details = "Updated time in for " . $current_record['full_name'] . 
+        $details = "Updated attendance for " . $current_record['full_name'] . 
                   " on " . $current_record['date'] . 
-                  " from " . $current_record['check_in'] . 
-                  " to " . $time_in;
-        log_activity($conn, $_SESSION['user_id'], 'Attendance Management', 'update_time_in', 
+                  " - Time In: " . $current_record['check_in'] . " to " . $time_in .
+                  ", Status: " . $current_record['status'] . " to " . $status;
+        log_activity($conn, $_SESSION['user_id'], 'Attendance Management', 'update_attendance', 
                     'attendance', $attendance_id, $details);
         
         // Redirect to refresh the page
@@ -1939,6 +1940,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_attendance']))
                             <label for="confirmNewPassword">Confirm New Password</label>
                             <input type="password" class="form-control" id="confirmNewPassword" name="confirm_password">
                         </div>
+                        <div class="form-group">
+                            <label for="editStatus">Status</label>
+                            <select class="form-control" id="editStatus" name="status">
+                                <option value="present">Present</option>
+                                <option value="absent">Absent</option>
+                                <option value="leave">Leave</option>
+                                <option value="late">Late</option>
+                            </select>
+                        </div>
                         <button type="submit" class="btn btn-primary" name="edit_user">Save Changes</button>
                     </form>
                 </div>
@@ -1980,8 +1990,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_attendance']))
                             <input type="text" class="form-control" id="viewTimeOut" readonly>
                         </div>
                         <div class="form-group">
-                            <label for="viewStatus">Status</label>
-                            <input type="text" class="form-control" id="viewStatus" readonly>
+                            <label for="editStatus">Status</label>
+                            <select class="form-control" id="editStatus" name="status">
+                                <option value="present">Present</option>
+                                <option value="absent">Absent</option>
+                                <option value="leave">Leave</option>
+                                <option value="late">Late</option>
+                            </select>
                         </div>
                         <button type="submit" class="btn btn-primary" name="update_attendance">Save Changes</button>
                     </form>
@@ -2181,7 +2196,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_attendance']))
                 document.getElementById('viewDate').value = this.dataset.date;
                 document.getElementById('editTimeIn').value = this.dataset.timeIn;
                 document.getElementById('viewTimeOut').value = this.dataset.timeOut;
-                document.getElementById('viewStatus').value = this.dataset.status;
+                document.getElementById('editStatus').value = this.dataset.status.toLowerCase(); // Set the status dropdown
                 
                 // Show modal
                 $(modal).modal('show');
