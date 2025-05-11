@@ -589,31 +589,79 @@ $show = $_GET['show'] ?? 'dashboard';
 
     <?php if ($show === 'notification'): ?>
         <style>
-            /* Center the notification form container */
-            #notificationContainer {
-                display: flex;
-                justify-content: center;
-                align-items: center;
-                min-height: 80vh;
-                width: 100%;
-            }
-            /* Remove the form shadow */
-            .notification-form-centered {
+            .notification-card {
                 background: #fff;
-                padding: 40px 32px 24px 32px;
-                border-radius: 20px;
-                /* No box-shadow */
-                max-width: 480px;
-                width: 100%;
-                margin: 0 auto;
+                border-radius: 16px;
+                box-shadow: 0 2px 12px rgba(0,0,0,0.08);
+                padding: 0;
+                max-width: 700px;
+                margin: 32px auto 0 auto;
+                border: none;
             }
-            /* Make all input/select/textarea borders black in the notification form */
-            .notification-form-centered input.form-control,
-            .notification-form-centered select.form-control,
-            .notification-form-centered textarea.form-control {
-                border: 1.5px solid #000 !important;
+            .notification-card-header {
+                padding: 20px 28px 12px 28px;
+                border-bottom: 1px solid #eee;
+                font-size: 1.5rem;
+                font-weight: bold;
+                color: #b30000;
+                background: #fff;
+                border-radius: 16px 16px 0 0;
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
             }
-            /* Success message style (like Create Account) */
+            .compose-btn {
+                background: #b30000;
+                color: #fff;
+                font-weight: 600;
+                border: none;
+                border-radius: 12px;
+                padding: 8px 24px;
+                font-size: 1.1rem;
+                display: flex;
+                align-items: center;
+                gap: 8px;
+                transition: background 0.18s;
+            }
+            .compose-btn i {
+                font-size: 1.2rem;
+            }
+            .notification-list {
+                padding: 0 28px 18px 28px;
+            }
+            .notification-item {
+                border-bottom: 1px solid #f0f0f0;
+                padding: 16px 0 8px 0;
+            }
+            .notification-item:last-child {
+                border-bottom: none;
+            }
+            .notification-title {
+                font-weight: 600;
+                color: #222;
+            }
+            .notification-meta {
+                font-size: 0.95rem;
+                color: #888;
+            }
+            .notification-content {
+                color: #444;
+                margin: 4px 0 0 0;
+            }
+            .urgent {
+                color: #b30000;
+                font-weight: bold;
+            }
+            .modal-content {
+                border-radius: 18px;
+            }
+            .modal-header {
+                border-bottom: none;
+            }
+            .modal-title {
+                color: #b30000;
+                font-weight: bold;
+            }
             .notif-success-message {
                 background: #d4edda;
                 color: #155724;
@@ -626,152 +674,209 @@ $show = $_GET['show'] ?? 'dashboard';
                 text-align: left;
             }
         </style>
-        <div id="notificationContainer">
-            <?php
-            // Handle form submission
-            $notif_msg = '';
-            $notif_success = false;
-            if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['send_notification'])) {
-                $title = trim($_POST['title'] ?? '');
-                $type = trim($_POST['type'] ?? '');
-                $content = trim($_POST['content'] ?? '');
-                $departments = $_POST['departments'] ?? [];
-                $schedule = $_POST['schedule'] ?? '';
-                $sender_id = $_SESSION['user_id'] ?? 1;
-                if ($title && $type && $content && !empty($departments)) {
-                    $scheduled_at = $schedule ? ("'" . mysqli_real_escape_string($conn, $schedule) . "'") : 'NULL';
-                    $title_esc = mysqli_real_escape_string($conn, $title);
-                    $type_esc = mysqli_real_escape_string($conn, $type);
-                    $content_esc = mysqli_real_escape_string($conn, $content);
-                    $insert = "INSERT INTO notification (sender_id, title, type, content, scheduled_at, created_at) VALUES ($sender_id, '$title_esc', '$type_esc', '$content_esc', $scheduled_at, NOW())";
-                    if (mysqli_query($conn, $insert)) {
-                        $notif_id = mysqli_insert_id($conn);
-                        // If All Departments is checked, insert all departments
-                        if (in_array('all', $departments)) {
-                            $dept_res = mysqli_query($conn, "SELECT department_id FROM department");
-                            while ($dept = mysqli_fetch_assoc($dept_res)) {
-                                $dept_id = $dept['department_id'];
-                                mysqli_query($conn, "INSERT INTO notification_recipient (notification_id, department_id) VALUES ($notif_id, $dept_id)");
-                            }
-                            // Log activity for all departments
-                            log_activity($conn, $sender_id, 'Notification', 'send_notification', 'notification', $notif_id, "Sent notification '$title_esc' to all departments");
-                        } else {
-                            $dept_names = [];
-                            foreach ($departments as $dept_id) {
-                                $dept_id = intval($dept_id);
-                                mysqli_query($conn, "INSERT INTO notification_recipient (notification_id, department_id) VALUES ($notif_id, $dept_id)");
-                                // Get department name for logging
-                                $dept_query = mysqli_query($conn, "SELECT name FROM department WHERE department_id = $dept_id");
-                                if ($dept_row = mysqli_fetch_assoc($dept_query)) {
-                                    $dept_names[] = $dept_row['name'];
-                                }
-                            }
-                            // Log activity with department names
-                            $dept_list = implode(', ', $dept_names);
-                            log_activity($conn, $sender_id, 'Notification', 'send_notification', 'notification', $notif_id, "Sent notification '$title_esc' to departments: $dept_list");
+        <?php
+        // Handle notification form submission
+        $notif_error = '';
+        $notif_success = false;
+        if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['send_notification'])) {
+            $notif_title = trim($_POST['title'] ?? '');
+            $notif_type = trim($_POST['type'] ?? '');
+            $notif_content = trim($_POST['content'] ?? '');
+            $notif_departments = $_POST['departments'] ?? [];
+            $notif_schedule = trim($_POST['schedule'] ?? '');
+            $notif_sender_id = $_SESSION['user_id'] ?? null;
+
+            if ($notif_title === '' || $notif_type === '' || $notif_content === '' || empty($notif_departments)) {
+                $notif_error = "Please fill in all required fields and select at least one department.";
+            } else {
+                // Prepare departments as comma-separated string
+                if (in_array('all', $notif_departments)) {
+                    $departments_str = 'all';
+                } else {
+                    $departments_str = implode(',', array_map('intval', $notif_departments));
+                }
+                // Schedule: if empty, use NOW()
+                $created_at = ($notif_schedule !== '') ? date('Y-m-d H:i:s', strtotime($notif_schedule)) : date('Y-m-d H:i:s');
+                // Insert notification
+                $stmt = mysqli_prepare($conn, "INSERT INTO notification (title, type, content, sender_id, created_at) VALUES (?, ?, ?, ?, ?)");
+                if ($stmt) {
+                    mysqli_stmt_bind_param($stmt, "sssis", $notif_title, $notif_type, $notif_content, $notif_sender_id, $created_at);
+                    $success = mysqli_stmt_execute($stmt);
+                    mysqli_stmt_close($stmt);
+                    if ($success) {
+                        // Log activity for sending notification
+                        if (function_exists('log_activity')) {
+                            log_activity(
+                                $conn,
+                                $notif_sender_id,
+                                'Notification',
+                                'send_notification',
+                                'notification',
+                                mysqli_insert_id($conn),
+                                "Sent notification titled: $notif_title"
+                            );
                         }
-                        // Success message styled like Create Account
-                        $notif_msg = '<div id="notifSuccessMsg" class="notif-success-message">Notification sent successfully!</div>';
+                        // Instead of header redirect, set a flag to show success message
                         $notif_success = true;
                     } else {
-                        $notif_msg = '<div class="alert alert-danger">Failed to send notification.</div>';
-                        // Log failed attempt
-                        log_activity($conn, $sender_id, 'Notification', 'send_notification_failed', 'notification', null, "Failed to send notification '$title_esc'");
+                        $notif_error = "Failed to send notification. Please try again.";
                     }
                 } else {
-                    $notif_msg = '<div class="alert alert-danger">All fields except schedule are required.</div>';
-                    // Log validation failure
-                    log_activity($conn, $sender_id, 'Notification', 'send_notification_validation_failed', 'notification', null, "Failed to send notification - missing required fields");
+                    $notif_error = "Database error. Please try again.";
                 }
             }
-            // Fetch departments
-            $departments = [];
-            $dept_res = mysqli_query($conn, "SELECT department_id, name FROM department ORDER BY name ASC");
-            while ($row = mysqli_fetch_assoc($dept_res)) {
-                $departments[] = $row;
-            }
-            ?>
-            <form method="POST" autocomplete="off" class="notification-form-centered">
-                <h3 style="color: #b30000; font-weight: bold; margin-bottom: 28px;">
-                    <i class="fas fa-edit" style="margin-right: 8px;"></i>Compose Notification
-                </h3>
-                <?php if ($notif_msg) echo $notif_msg; ?>
-                <div class="form-group mb-3">
-                    <label for="notifTitle" style="color:#b30000;font-weight:600;">Notification Title</label>
-                    <input type="text" class="form-control" id="notifTitle" name="title" required>
+        }
+        ?>
+        <div class="notification-card">
+            <div class="notification-card-header">
+                Notifications
+                <button type="button" class="compose-btn" id="composeNotifBtn">
+                    <i class="fas fa-edit"></i> Compose
+                </button>
+            </div>
+            <?php if (!empty($notif_error)): ?>
+                <div class="notif-success-message" style="background:#f8d7da;color:#721c24;border-color:#f5c6cb;margin-left:18px;margin-right:18px;">
+                    <?= htmlspecialchars($notif_error) ?>
                 </div>
-                <div class="form-group mb-3">
-                    <label for="notifType" style="color:#b30000;font-weight:600;">Notification Type</label>
-                    <select class="form-control" id="notifType" name="type" required>
-                        <option value="">Select Type</option>
-                        <option value="Company-wide Announcements">Company-wide Announcements</option>
-                        <option value="Payroll and Compensation Notifications">Payroll and Compensation Notifications</option>
-                        <option value="Training and Development Notifications">Training and Development Notifications</option>
-                        <option value="Leave Request Status">Leave Request Status</option>
-                        <option value="Employee Management Notifications">Employee Management Notifications</option>
-                    </select>
+            <?php endif; ?>
+            <?php if ($notif_success || (isset($_GET['notif_success']) && $_GET['notif_success'] == '1')): ?>
+                <div id="notifSuccessMsg" class="notif-success-message" style="margin-left:18px;margin-right:18px;">
+                    Notification sent successfully!
                 </div>
-                <div class="form-group mb-3">
-                    <label for="notifContent" style="color:#b30000;font-weight:600;">Content</label>
-                    <textarea class="form-control" id="notifContent" name="content" rows="3" required></textarea>
-                </div>
-                <div class="form-group mb-3">
-                    <label style="color:#b30000;font-weight:600;">Recipient</label>
-                    <div style="background:#f8f8f8;border-radius:8px;padding:8px 0 8px 0;border:1.5px solid #000;">
-                        <div class="form-check" style="padding-left:1.5em;">
-                            <input class="form-check-input" type="checkbox" id="allDepartments" name="departments[]" value="all">
-                            <label class="form-check-label" for="allDepartments" style="font-weight:600;">All Departments</label>
-                        </div>
-                        <?php foreach ($departments as $dept): ?>
-                            <div class="form-check" style="padding-left:1.5em;">
-                                <input class="form-check-input department-checkbox" type="checkbox" id="dept<?= $dept['department_id'] ?>" name="departments[]" value="<?= $dept['department_id'] ?>">
-                                <label class="form-check-label" for="dept<?= $dept['department_id'] ?>"> <?= htmlspecialchars($dept['name']) ?> </label>
+            <?php endif; ?>
+            <div class="notification-list">
+                <?php
+                // Fetch recent notifications (limit 5)
+                $recent_notif_res = mysqli_query($conn, "SELECT n.*, ua.full_name as sender_name FROM notification n LEFT JOIN user_account ua ON n.sender_id = ua.user_id ORDER BY n.created_at DESC LIMIT 5");
+                $recent_notifications = [];
+                if ($recent_notif_res) {
+                    while ($row = mysqli_fetch_assoc($recent_notif_res)) {
+                        $recent_notifications[] = $row;
+                    }
+                }
+                if (empty($recent_notifications)) {
+                    echo '<div class="text-center text-muted" style="padding: 32px 0;">No notifications available</div>';
+                } else {
+                    foreach ($recent_notifications as $notif) {
+                        echo '<div class="notification-item">';
+                        if (strtolower($notif['type']) === 'urgent' || stripos($notif['title'], 'urgent') !== false) {
+                            echo '<div class="notification-title urgent">' . htmlspecialchars($notif['title']) . '</div>';
+                        } else {
+                            echo '<div class="notification-title">' . htmlspecialchars($notif['title']) . '</div>';
+                        }
+                        echo '<div class="notification-meta">';
+                        echo date('M d, Y h:i A', strtotime($notif['created_at'])) . ' &bull; ' . htmlspecialchars($notif['type']);
+                        if (!empty($notif['sender_name'])) {
+                            echo ' &bull; ' . htmlspecialchars($notif['sender_name']);
+                        }
+                        echo '</div>';
+                        echo '<div class="notification-content">' . nl2br(htmlspecialchars($notif['content'])) . '</div>';
+                        echo '</div>';
+                    }
+                }
+                ?>
+            </div>
+        </div>
+
+        <!-- Compose Notification Modal -->
+        <div class="modal fade" id="composeNotifModal" tabindex="-1" role="dialog" aria-labelledby="composeNotifModalLabel" aria-hidden="true">
+            <div class="modal-dialog" role="document">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title" id="composeNotifModalLabel"><i class="fas fa-edit" style="margin-right: 8px;"></i>Compose Notification</h5>
+                        <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                            <span aria-hidden="true">&times;</span>
+                        </button>
+                    </div>
+                    <div class="modal-body">
+                        <form method="POST" autocomplete="off" id="notificationForm" action="?show=notification">
+                            <div class="form-group mb-3">
+                                <label for="notifTitle" style="color:#b30000;font-weight:600;">Notification Title</label>
+                                <input type="text" class="form-control" id="notifTitle" name="title" required>
                             </div>
-                        <?php endforeach; ?>
+                            <div class="form-group mb-3">
+                                <label for="notifType" style="color:#b30000;font-weight:600;">Notification Type</label>
+                                <select class="form-control" id="notifType" name="type" required>
+                                    <option value="">Select Type</option>
+                                    <option value="Company-wide Announcements">Company-wide Announcements</option>
+                                    <option value="Payroll and Compensation Notifications">Payroll and Compensation Notifications</option>
+                                    <option value="Training and Development Notifications">Training and Development Notifications</option>
+                                    <option value="Leave Request Status">Leave Request Status</option>
+                                    <option value="Employee Management Notifications">Employee Management Notifications</option>
+                                </select>
+                            </div>
+                            <div class="form-group mb-3">
+                                <label for="notifContent" style="color:#b30000;font-weight:600;">Content</label>
+                                <textarea class="form-control" id="notifContent" name="content" rows="3" required></textarea>
+                            </div>
+                            <div class="form-group mb-3">
+                                <label style="color:#b30000;font-weight:600;">Recipient</label>
+                                <div style="background:#f8f8f8;border-radius:8px;padding:8px 0 8px 0;border:1.5px solid #000;">
+                                    <div class="form-check" style="padding-left:1.5em;">
+                                        <input class="form-check-input" type="checkbox" id="allDepartments" name="departments[]" value="all">
+                                        <label class="form-check-label" for="allDepartments" style="font-weight:600;">All Departments</label>
+                                    </div>
+                                    <?php foreach ($departments as $dept): ?>
+                                        <div class="form-check" style="padding-left:1.5em;">
+                                            <input class="form-check-input department-checkbox" type="checkbox" id="dept<?= $dept['department_id'] ?>" name="departments[]" value="<?= $dept['department_id'] ?>">
+                                            <label class="form-check-label" for="dept<?= $dept['department_id'] ?>"> <?= htmlspecialchars($dept['name']) ?> </label>
+                                        </div>
+                                    <?php endforeach; ?>
+                                </div>
+                            </div>
+                            <div class="form-group mb-3">
+                                <label for="notifSchedule" style="color:#b30000;font-weight:600;">Schedule (Optional)</label>
+                                <input type="datetime-local" class="form-control" id="notifSchedule" name="schedule">
+                            </div>
+                            <div class="d-flex justify-content-end mt-4" style="gap:12px;">
+                                <button type="submit" class="btn" name="send_notification" style="background:#b30000;color:#fff;font-weight:600;min-width:100px;border-radius:8px;font-size:1.1rem;">Send</button>
+                                <button type="button" class="btn btn-secondary" data-dismiss="modal" style="min-width:100px;border-radius:8px;font-size:1.1rem;">Cancel</button>
+                            </div>
+                        </form>
                     </div>
                 </div>
-                <div class="form-group mb-3">
-                    <label for="notifSchedule" style="color:#b30000;font-weight:600;">Schedule (Optional)</label>
-                    <input type="datetime-local" class="form-control" id="notifSchedule" name="schedule">
-                </div>
-                <div class="d-flex justify-content-end mt-4" style="gap:12px;">
-                    <button type="submit" class="btn" name="send_notification" style="background:#b30000;color:#fff;font-weight:600;min-width:100px;border-radius:8px;font-size:1.1rem;">Save</button>
-                    <a href="?show=dashboard" class="btn btn-secondary" style="min-width:100px;border-radius:8px;font-size:1.1rem;">Cancel</a>
-                </div>
-            </form>
-            <script>
-            // All Departments checkbox logic
-            document.addEventListener('DOMContentLoaded', function() {
-                var allDepartments = document.getElementById('allDepartments');
-                var deptCheckboxes = document.querySelectorAll('.department-checkbox');
-                if (allDepartments) {
-                    allDepartments.addEventListener('change', function() {
-                        deptCheckboxes.forEach(function(cb) {
-                            cb.checked = allDepartments.checked;
-                        });
-                    });
-                    deptCheckboxes.forEach(function(cb) {
-                        cb.addEventListener('change', function() {
-                            if (!cb.checked) allDepartments.checked = false;
-                            else {
-                                var allChecked = Array.from(deptCheckboxes).every(function(box) { return box.checked; });
-                                if (allChecked) allDepartments.checked = true;
-                            }
-                        });
-                    });
-                }
-
-                // Hide notification success message after 3 seconds
-                var notifSuccessMsg = document.getElementById('notifSuccessMsg');
-                if (notifSuccessMsg) {
-                    setTimeout(function() {
-                        notifSuccessMsg.style.display = 'none';
-                    }, 3000);
-                }
-            });
-            </script>
+            </div>
         </div>
+        <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // Compose button opens modal
+            var composeBtn = document.getElementById('composeNotifBtn');
+            var composeModal = document.getElementById('composeNotifModal');
+            if (composeBtn && composeModal) {
+                composeBtn.addEventListener('click', function() {
+                    $('#composeNotifModal').modal('show');
+                });
+            }
+            // All Departments checkbox logic (inside modal)
+            var allDepartments = document.getElementById('allDepartments');
+            var deptCheckboxes = document.querySelectorAll('.department-checkbox');
+            if (allDepartments) {
+                allDepartments.addEventListener('change', function() {
+                    deptCheckboxes.forEach(function(cb) {
+                        cb.checked = allDepartments.checked;
+                    });
+                });
+                deptCheckboxes.forEach(function(cb) {
+                    cb.addEventListener('change', function() {
+                        if (!cb.checked) allDepartments.checked = false;
+                        else {
+                            var allChecked = Array.from(deptCheckboxes).every(function(box) { return box.checked; });
+                            if (allChecked) allDepartments.checked = true;
+                        }
+                    });
+                });
+            }
+            // Hide notification success message after 3 seconds (only if present)
+            var notifSuccessMsg = document.getElementById('notifSuccessMsg');
+            if (notifSuccessMsg) {
+                setTimeout(function() {
+                    notifSuccessMsg.parentNode.removeChild(notifSuccessMsg);
+                }, 3000);
+            }
+        });
+        </script>
     <?php endif; ?>
+
 
     <?php if ($show === 'activityLogs'): ?>
         <div id="activityLogsContainer" style="display: block;">
