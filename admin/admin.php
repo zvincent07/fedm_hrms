@@ -434,7 +434,7 @@ $show = $_GET['show'] ?? 'dashboard';
                     <div style="flex:1; max-width: 330px; min-width: 270px; display: flex; justify-content: center;">
                         <div style="background: #8B0000; border-radius: 18px; padding: 28px 0 22px 0; width: 100%; height: 170px; display: flex; align-items: center; gap: 20px; box-shadow: 0 2px 12px rgba(0,0,0,0.07); justify-content: center;">
                             <span style="font-size: 3rem; color: #fff; margin-right: 8px;">
-                                <i class="fa-solid fa-book-open"></i>
+                                <i class="fa-solid fa-building"></i>
                             </span>
                             <div>
                                 <div style="font-size: 2.2rem; font-weight: bold; color: #fff; line-height: 1;"><?= $leave_count ?></div>
@@ -446,7 +446,7 @@ $show = $_GET['show'] ?? 'dashboard';
                     <div style="flex:1; max-width: 330px; min-width: 270px; display: flex; justify-content: center;">
                         <div style="background: #B22222; border-radius: 18px; padding: 28px 0 22px 0; width: 100%; height: 170px; display: flex; align-items: center; gap: 20px; box-shadow: 0 2px 12px rgba(0,0,0,0.07); justify-content: center;">
                             <span style="font-size: 3rem; color: #fff; margin-right: 8px;">
-                                <i class="fa-solid fa-money-bill-wave"></i>
+                                <i class="fa-solid fa-user-slash"></i>
                             </span>
                             <div>
                                 <div style="font-size: 2.2rem; font-weight: bold; color: #fff; line-height: 1;"><?= $resignation_count ?></div>
