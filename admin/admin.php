@@ -410,6 +410,24 @@ if ($notif_result) {
         $recent_notifications[] = $row;
     }
 }
+
+// Add this handler at the top of the attendance section:
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['view_attendance'])) {
+    $attendance_id = intval($_POST['attendance_id']);
+    
+    // Get attendance details
+    $attendance_details_query = "SELECT a.*, ua.full_name FROM attendance a 
+                               JOIN user_account ua ON a.employee_id = ua.user_id 
+                               WHERE a.attendance_id = $attendance_id";
+    $attendance_details_result = mysqli_query($conn, $attendance_details_query);
+    $attendance_details = mysqli_fetch_assoc($attendance_details_result);
+    
+    // Log the activity
+    $details = "Viewed attendance record for " . $attendance_details['full_name'] . 
+              " on " . $attendance_details['date'];
+    log_activity($conn, $_SESSION['user_id'], 'Attendance Management', 'view_record', 
+                'attendance', $attendance_id, $details);
+}
 ?>
 
 <?php include 'adminHeader.php'; ?>
@@ -595,6 +613,7 @@ if ($notif_result) {
                                                 <th>Check In</th>
                                                 <th>Check Out</th>
                                                 <th>Status</th>
+                                                <th>Action</th>
                                             </tr>
                                         </thead>
                                         <tbody>
@@ -605,6 +624,12 @@ if ($notif_result) {
                                                     <td><?= $row['check_in'] ? date('g:i A', strtotime($row['check_in'])) : '-' ?></td>
                                                     <td><?= $row['check_out'] ? date('g:i A', strtotime($row['check_out'])) : '-' ?></td>
                                                     <td><?= ucfirst($row['status']) ?></td>
+                                                    <td>
+                                                        <form method="POST" style="display:inline;">
+                                                            <input type="hidden" name="attendance_id" value="<?= htmlspecialchars($row['attendance_id']) ?>">
+                                                            <button type="submit" name="view_attendance" class="btn btn-danger btn-sm">View</button>
+                                                        </form>
+                                                    </td>
                                                 </tr>
                                             <?php endforeach; ?>
                                         </tbody>
@@ -838,7 +863,12 @@ if ($notif_result) {
                             echo "<td>" . ($row['check_in'] ? date('g:i A', strtotime($row['check_in'])) : '-') . "</td>";
                             echo "<td>" . ($row['check_out'] ? date('g:i A', strtotime($row['check_out'])) : '-') . "</td>";
                             echo "<td>" . htmlspecialchars($status) . "</td>";
-                            echo '<td><button class="btn btn-danger btn-sm">View</button></td>';
+                            echo '<td>';
+                            echo '<form method="POST" style="display:inline;">';
+                            echo '<input type="hidden" name="attendance_id" value="' . htmlspecialchars($row['attendance_id']) . '">';
+                            echo '<button type="submit" name="view_attendance" class="btn btn-danger btn-sm">View</button>';
+                            echo '</form>';
+                            echo '</td>';
                             echo "</tr>";
                         }
                     } else {
@@ -895,8 +925,22 @@ if ($notif_result) {
             if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_leave_status'])) {
                 $leave_id = intval($_POST['leave_id']);
                 $new_status = mysqli_real_escape_string($conn, $_POST['new_status']);
+                
+                // Get leave request details before update
+                $leave_details_query = "SELECT lr.*, ua.full_name FROM leave_request lr 
+                                      JOIN user_account ua ON lr.employee_id = ua.user_id 
+                                      WHERE lr.leave_id = $leave_id";
+                $leave_details_result = mysqli_query($conn, $leave_details_query);
+                $leave_details = mysqli_fetch_assoc($leave_details_result);
+                
                 $update_query = "UPDATE leave_request SET status = '$new_status' WHERE leave_id = $leave_id";
-                mysqli_query($conn, $update_query);
+                if (mysqli_query($conn, $update_query)) {
+                    // Log the activity
+                    $details = "Updated leave request status for " . $leave_details['full_name'] . 
+                              " from " . $leave_details['status'] . " to " . $new_status;
+                    log_activity($conn, $_SESSION['user_id'], 'Leave Management', 'update_status', 
+                                'leave_request', $leave_id, $details);
+                }
             }
             ?>
             <div class="filter-section d-flex align-items-center mb-3 justify-content-between">
@@ -1038,8 +1082,22 @@ if ($notif_result) {
             if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_resignation_status'])) {
                 $resignation_id = intval($_POST['resignation_id']);
                 $new_status = mysqli_real_escape_string($conn, $_POST['new_status']);
+                
+                // Get resignation details before update
+                $resignation_details_query = "SELECT r.*, ua.full_name FROM resignation r 
+                                            JOIN user_account ua ON r.employee_id = ua.user_id 
+                                            WHERE r.resignation_id = $resignation_id";
+                $resignation_details_result = mysqli_query($conn, $resignation_details_query);
+                $resignation_details = mysqli_fetch_assoc($resignation_details_result);
+                
                 $update_query = "UPDATE resignation SET status = '$new_status' WHERE resignation_id = $resignation_id";
-                mysqli_query($conn, $update_query);
+                if (mysqli_query($conn, $update_query)) {
+                    // Log the activity
+                    $details = "Updated resignation status for " . $resignation_details['full_name'] . 
+                              " from " . $resignation_details['status'] . " to " . $new_status;
+                    log_activity($conn, $_SESSION['user_id'], 'Resignation Management', 'update_status', 
+                                'resignation', $resignation_id, $details);
+                }
             }
             ?>
             <div class="filter-section d-flex align-items-center mb-3 justify-content-between">
