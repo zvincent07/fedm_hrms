@@ -2,6 +2,17 @@
 include '../config/db.php';
 session_start();
 
+// Check if user is logged in and is an admin
+if (!isset($_SESSION['user_id']) || !isset($_SESSION['role']) || $_SESSION['role'] !== 'Admin') {
+    // Log unauthorized access attempt
+    if (isset($_SESSION['user_id'])) {
+        log_activity($conn, $_SESSION['user_id'], 'Security', 'unauthorized_access', 'admin_page', null, 'Unauthorized access attempt to admin page');
+    }
+    // Redirect to login page
+    header('Location: ../index.php');
+    exit();
+}
+
 // Helper function to log admin actions
 function log_activity($conn, $user_id, $module, $action, $target_type = null, $target_id = null, $details = null) {
     $user_id = $user_id ? intval($user_id) : 'NULL';
