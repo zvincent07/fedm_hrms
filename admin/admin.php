@@ -591,22 +591,405 @@ $show = $_GET['show'] ?? 'dashboard';
 
     <?php if ($show === 'attendance'): ?>
         <div id="attendanceContainer" style="display: block;">
-            <h3>Attendance</h3>
-            <!-- Add content specific to Attendance here -->
+            <h3>Employee's Attendance Record</h3>
+            <div class="filter-section d-flex align-items-center mb-3 justify-content-between">
+                <form method="get" class="d-flex align-items-center" style="gap: 8px; width:100%;">
+                    <input type="hidden" name="show" value="attendance">
+                    <input type="text" name="attendance_search" value="<?= htmlspecialchars($_GET['attendance_search'] ?? '') ?>" placeholder="Search by name..." class="form-control" style="max-width: 220px;">
+                    <input type="date" name="attendance_date" value="<?= htmlspecialchars($_GET['attendance_date'] ?? '') ?>" class="form-control" style="max-width: 170px;">
+                    <select name="attendance_status" class="form-control" style="max-width: 160px;">
+                        <option value="">All Status</option>
+                        <option value="present" <?= (($_GET['attendance_status'] ?? '') === 'present') ? 'selected' : '' ?>>Present</option>
+                        <option value="absent" <?= (($_GET['attendance_status'] ?? '') === 'absent') ? 'selected' : '' ?>>Absent</option>
+                        <option value="leave" <?= (($_GET['attendance_status'] ?? '') === 'leave') ? 'selected' : '' ?>>Leave</option>
+                        <option value="late" <?= (($_GET['attendance_status'] ?? '') === 'late') ? 'selected' : '' ?>>Late</option>
+                    </select>
+                    <select name="attendance_department" class="form-control" style="max-width: 160px;">
+                        <option value="">All Departments</option>
+                        <?php foreach ($departments as $department): ?>
+                            <option value="<?= htmlspecialchars($department['department_id']) ?>" <?= (($_GET['attendance_department'] ?? '') == $department['department_id']) ? 'selected' : '' ?>><?= htmlspecialchars($department['name']) ?></option>
+                        <?php endforeach; ?>
+                    </select>
+                    <button type="submit" class="btn btn-primary">Filter</button>
+                    <a href="?show=attendance" class="btn btn-secondary" title="Reset"><i class="fas fa-sync-alt"></i></a>
+                </form>
+            </div>
+            <div class="table-responsive">
+                <table class="table table-striped">
+                    <thead>
+                        <tr>
+                            <th>Name(s)</th>
+                            <th>Date</th>
+                            <th>Time In</th>
+                            <th>Time Out</th>
+                            <th>Status</th>
+                            <th>Action</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                    <?php
+                    $limit = 10;
+                    $page = isset($_GET['attendance_page']) ? (int)$_GET['attendance_page'] : 1;
+                    $offset = ($page - 1) * $limit;
+                    $attendance_search = $_GET['attendance_search'] ?? '';
+                    $attendance_date = $_GET['attendance_date'] ?? '';
+                    $attendance_status = $_GET['attendance_status'] ?? '';
+                    $attendance_department = $_GET['attendance_department'] ?? '';
+                    $where = "1=1";
+                    if ($attendance_search !== '') {
+                        $esc = mysqli_real_escape_string($conn, $attendance_search);
+                        $where .= " AND (ua.full_name LIKE '%$esc%')";
+                    }
+                    if ($attendance_date !== '') {
+                        $esc = mysqli_real_escape_string($conn, $attendance_date);
+                        $where .= " AND a.date = '$esc'";
+                    }
+                    if ($attendance_status !== '') {
+                        $esc = mysqli_real_escape_string($conn, $attendance_status);
+                        $where .= " AND a.status = '$esc'";
+                    }
+                    if ($attendance_department !== '') {
+                        $esc = mysqli_real_escape_string($conn, $attendance_department);
+                        $where .= " AND ua.department_id = '$esc'";
+                    }
+                    $attendance_query = "SELECT a.*, ua.full_name, d.name AS department_name FROM attendance a JOIN user_account ua ON a.employee_id = ua.user_id LEFT JOIN department d ON ua.department_id = d.department_id WHERE $where ORDER BY a.date DESC, a.attendance_id DESC LIMIT $limit OFFSET $offset";
+                    $attendance_result = mysqli_query($conn, $attendance_query);
+                    if ($attendance_result && mysqli_num_rows($attendance_result) > 0) {
+                        while ($row = mysqli_fetch_assoc($attendance_result)) {
+                            $status = ucfirst($row['status']);
+                            if ($status === 'Present' && $row['check_in'] && strtotime($row['check_in']) > strtotime('09:15:00')) {
+                                $status = 'Late';
+                            }
+                            echo "<tr>";
+                            echo "<td>" . htmlspecialchars($row['full_name']) . "</td>";
+                            echo "<td>" . htmlspecialchars($row['date']) . "</td>";
+                            echo "<td>" . ($row['check_in'] ? date('g:i A', strtotime($row['check_in'])) : '-') . "</td>";
+                            echo "<td>" . ($row['check_out'] ? date('g:i A', strtotime($row['check_out'])) : '-') . "</td>";
+                            echo "<td>" . htmlspecialchars($status) . "</td>";
+                            echo '<td><button class="btn btn-danger btn-sm">View</button></td>';
+                            echo "</tr>";
+                        }
+                    } else {
+                        echo '<tr><td colspan="6" class="text-center">No attendance records found.</td></tr>';
+                    }
+                    // Pagination
+                    $count_query = "SELECT COUNT(*) as total FROM attendance a JOIN user_account ua ON a.employee_id = ua.user_id LEFT JOIN department d ON ua.department_id = d.department_id WHERE $where";
+                    $count_result = mysqli_query($conn, $count_query);
+                    $total = 0;
+                    if ($count_result) {
+                        $row = mysqli_fetch_assoc($count_result);
+                        $total = $row['total'];
+                    }
+                    $totalPages = ceil($total / $limit);
+                    ?>
+                    </tbody>
+                </table>
+            </div>
+            <nav aria-label="Attendance page navigation">
+                <ul class="pagination justify-content-center">
+                    <li class="page-item <?php if($page <= 1){ echo 'disabled'; } ?>">
+                        <a class="page-link" href="<?php
+                            $params = $_GET;
+                            $params['attendance_page'] = $page - 1;
+                            echo ($page > 1) ? '?' . http_build_query($params) : '#';
+                        ?>">Previous</a>
+                    </li>
+                    <?php for($i = 1; $i <= $totalPages; $i++): ?>
+                        <li class="page-item <?php if($page == $i){ echo 'active'; } ?>">
+                            <a class="page-link" href="<?php
+                                $params = $_GET;
+                                $params['attendance_page'] = $i;
+                                echo '?' . http_build_query($params);
+                            ?>"><?php echo $i; ?></a>
+                        </li>
+                    <?php endfor; ?>
+                    <li class="page-item <?php if($page >= $totalPages){ echo 'disabled'; } ?>">
+                        <a class="page-link" href="<?php
+                            $params = $_GET;
+                            $params['attendance_page'] = $page + 1;
+                            echo ($page < $totalPages) ? '?' . http_build_query($params) : '#';
+                        ?>">Next</a>
+                    </li>
+                </ul>
+            </nav>
         </div>
     <?php endif; ?>
 
     <?php if ($show === 'leave'): ?>
         <div id="leaveContainer" style="display: block;">
-            <h3>Leave</h3>
-            <!-- Add content specific to Leave here -->
+            <h3>Employee Leave Requests</h3>
+            <?php
+            // Handle leave status update
+            if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_leave_status'])) {
+                $leave_id = intval($_POST['leave_id']);
+                $new_status = mysqli_real_escape_string($conn, $_POST['new_status']);
+                $update_query = "UPDATE leave_request SET status = '$new_status' WHERE leave_id = $leave_id";
+                mysqli_query($conn, $update_query);
+            }
+            ?>
+            <div class="filter-section d-flex align-items-center mb-3 justify-content-between">
+                <form method="get" class="d-flex align-items-center" style="gap: 8px; width:100%;">
+                    <input type="hidden" name="show" value="leave">
+                    <input type="text" name="leave_search" value="<?= htmlspecialchars($_GET['leave_search'] ?? '') ?>" placeholder="Search by name..." class="form-control" style="max-width: 220px;">
+                    <input type="date" name="leave_date" value="<?= htmlspecialchars($_GET['leave_date'] ?? '') ?>" class="form-control" style="max-width: 170px;">
+                    <select name="leave_status" class="form-control" style="max-width: 160px;">
+                        <option value="">All Status</option>
+                        <option value="pending" <?= (($_GET['leave_status'] ?? '') === 'pending') ? 'selected' : '' ?>>Pending</option>
+                        <option value="approved" <?= (($_GET['leave_status'] ?? '') === 'approved') ? 'selected' : '' ?>>Approved</option>
+                        <option value="rejected" <?= (($_GET['leave_status'] ?? '') === 'rejected') ? 'selected' : '' ?>>Rejected</option>
+                    </select>
+                    <select name="leave_department" class="form-control" style="max-width: 160px;">
+                        <option value="">All Departments</option>
+                        <?php foreach ($departments as $department): ?>
+                            <option value="<?= htmlspecialchars($department['department_id']) ?>" <?= (($_GET['leave_department'] ?? '') == $department['department_id']) ? 'selected' : '' ?>><?= htmlspecialchars($department['name']) ?></option>
+                        <?php endforeach; ?>
+                    </select>
+                    <button type="submit" class="btn btn-primary">Filter</button>
+                    <a href="?show=leave" class="btn btn-secondary" title="Reset"><i class="fas fa-sync-alt"></i></a>
+                </form>
+            </div>
+            <div class="table-responsive">
+                <table class="table table-striped">
+                    <thead>
+                        <tr>
+                            <th>Name(s)</th>
+                            <th>Department</th>
+                            <th>Start Date</th>
+                            <th>End Date</th>
+                            <th>Reason</th>
+                            <th>Status</th>
+                            <th>Action</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                    <?php
+                    $limit = 10;
+                    $page = isset($_GET['leave_page']) ? (int)$_GET['leave_page'] : 1;
+                    $offset = ($page - 1) * $limit;
+                    $leave_search = $_GET['leave_search'] ?? '';
+                    $leave_date = $_GET['leave_date'] ?? '';
+                    $leave_status = $_GET['leave_status'] ?? '';
+                    $leave_department = $_GET['leave_department'] ?? '';
+                    $where = "1=1";
+                    if ($leave_search !== '') {
+                        $esc = mysqli_real_escape_string($conn, $leave_search);
+                        $where .= " AND (ua.full_name LIKE '%$esc%')";
+                    }
+                    if ($leave_date !== '') {
+                        $esc = mysqli_real_escape_string($conn, $leave_date);
+                        $where .= " AND (lr.start_date <= '$esc' AND lr.end_date >= '$esc')";
+                    }
+                    if ($leave_status !== '') {
+                        $esc = mysqli_real_escape_string($conn, $leave_status);
+                        $where .= " AND lr.status = '$esc'";
+                    }
+                    if ($leave_department !== '') {
+                        $esc = mysqli_real_escape_string($conn, $leave_department);
+                        $where .= " AND ua.department_id = '$esc'";
+                    }
+                    $leave_query = "SELECT lr.*, ua.full_name, d.name AS department_name FROM leave_request lr JOIN user_account ua ON lr.employee_id = ua.user_id LEFT JOIN department d ON ua.department_id = d.department_id WHERE $where ORDER BY lr.requested_at DESC, lr.leave_id DESC LIMIT $limit OFFSET $offset";
+                    $leave_result = mysqli_query($conn, $leave_query);
+                    if ($leave_result && mysqli_num_rows($leave_result) > 0) {
+                        while ($row = mysqli_fetch_assoc($leave_result)) {
+                            echo "<tr>";
+                            echo "<td>" . htmlspecialchars($row['full_name']) . "</td>";
+                            echo "<td>" . htmlspecialchars($row['department_name'] ?? '-') . "</td>";
+                            echo "<td>" . htmlspecialchars($row['start_date']) . "</td>";
+                            echo "<td>" . htmlspecialchars($row['end_date']) . "</td>";
+                            echo "<td>" . htmlspecialchars($row['reason']) . "</td>";
+                            echo "<td>" . ucfirst($row['status']) . "</td>";
+                            echo '<td>';
+                            echo '<form method="POST" style="display:inline;">';
+                            echo '<input type="hidden" name="leave_id" value="' . htmlspecialchars($row['leave_id']) . '">';
+                            echo '<select name="new_status" class="form-control form-control-sm d-inline-block" style="width:auto;display:inline-block;">';
+                            foreach (["pending", "approved", "rejected"] as $statusOpt) {
+                                $selected = ($row['status'] === $statusOpt) ? 'selected' : '';
+                                echo '<option value="' . $statusOpt . '" ' . $selected . '>' . ucfirst($statusOpt) . '</option>';
+                            }
+                            echo '</select> ';
+                            echo '<button type="submit" name="update_leave_status" class="btn btn-primary btn-sm">Update</button>';
+                            echo '</form>';
+                            echo '</td>';
+                            echo "</tr>";
+                        }
+                    } else {
+                        echo '<tr><td colspan="7" class="text-center">No leave requests found.</td></tr>';
+                    }
+                    // Pagination
+                    $count_query = "SELECT COUNT(*) as total FROM leave_request lr JOIN user_account ua ON lr.employee_id = ua.user_id LEFT JOIN department d ON ua.department_id = d.department_id WHERE $where";
+                    $count_result = mysqli_query($conn, $count_query);
+                    $total = 0;
+                    if ($count_result) {
+                        $row = mysqli_fetch_assoc($count_result);
+                        $total = $row['total'];
+                    }
+                    $totalPages = ceil($total / $limit);
+                    ?>
+                    </tbody>
+                </table>
+            </div>
+            <nav aria-label="Leave page navigation">
+                <ul class="pagination justify-content-center">
+                    <li class="page-item <?php if($page <= 1){ echo 'disabled'; } ?>">
+                        <a class="page-link" href="<?php
+                            $params = $_GET;
+                            $params['leave_page'] = $page - 1;
+                            echo ($page > 1) ? '?' . http_build_query($params) : '#';
+                        ?>">Previous</a>
+                    </li>
+                    <?php for($i = 1; $i <= $totalPages; $i++): ?>
+                        <li class="page-item <?php if($page == $i){ echo 'active'; } ?>">
+                            <a class="page-link" href="<?php
+                                $params = $_GET;
+                                $params['leave_page'] = $i;
+                                echo '?' . http_build_query($params);
+                            ?>"><?php echo $i; ?></a>
+                        </li>
+                    <?php endfor; ?>
+                    <li class="page-item <?php if($page >= $totalPages){ echo 'disabled'; } ?>">
+                        <a class="page-link" href="<?php
+                            $params = $_GET;
+                            $params['leave_page'] = $page + 1;
+                            echo ($page < $totalPages) ? '?' . http_build_query($params) : '#';
+                        ?>">Next</a>
+                    </li>
+                </ul>
+            </nav>
         </div>
     <?php endif; ?>
 
     <?php if ($show === 'resignation'): ?>
         <div id="resignationContainer" style="display: block;">
-            <h3>Resignation</h3>
-            <!-- Add content specific to Resignation here -->
+            <h3>Employee Resignation Requests</h3>
+            <?php
+            // Handle resignation status update
+            if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_resignation_status'])) {
+                $resignation_id = intval($_POST['resignation_id']);
+                $new_status = mysqli_real_escape_string($conn, $_POST['new_status']);
+                $update_query = "UPDATE resignation SET status = '$new_status' WHERE resignation_id = $resignation_id";
+                mysqli_query($conn, $update_query);
+            }
+            ?>
+            <div class="filter-section d-flex align-items-center mb-3 justify-content-between">
+                <form method="get" class="d-flex align-items-center" style="gap: 8px; width:100%;">
+                    <input type="hidden" name="show" value="resignation">
+                    <input type="text" name="resignation_search" value="<?= htmlspecialchars($_GET['resignation_search'] ?? '') ?>" placeholder="Search by name..." class="form-control" style="max-width: 220px;">
+                    <select name="resignation_status" class="form-control" style="max-width: 160px;">
+                        <option value="">All Status</option>
+                        <option value="pending" <?= (($_GET['resignation_status'] ?? '') === 'pending') ? 'selected' : '' ?>>Pending</option>
+                        <option value="approved" <?= (($_GET['resignation_status'] ?? '') === 'approved') ? 'selected' : '' ?>>Approved</option>
+                        <option value="rejected" <?= (($_GET['resignation_status'] ?? '') === 'rejected') ? 'selected' : '' ?>>Rejected</option>
+                    </select>
+                    <select name="resignation_department" class="form-control" style="max-width: 160px;">
+                        <option value="">All Departments</option>
+                        <?php foreach ($departments as $department): ?>
+                            <option value="<?= htmlspecialchars($department['department_id']) ?>" <?= (($_GET['resignation_department'] ?? '') == $department['department_id']) ? 'selected' : '' ?>><?= htmlspecialchars($department['name']) ?></option>
+                        <?php endforeach; ?>
+                    </select>
+                    <button type="submit" class="btn btn-primary">Filter</button>
+                    <a href="?show=resignation" class="btn btn-secondary" title="Reset"><i class="fas fa-sync-alt"></i></a>
+                </form>
+            </div>
+            <div class="table-responsive">
+                <table class="table table-striped">
+                    <thead>
+                        <tr>
+                            <th>Name(s)</th>
+                            <th>Department</th>
+                            <th>Reason</th>
+                            <th>Status</th>
+                            <th>Submitted At</th>
+                            <th>Action</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                    <?php
+                    $limit = 10;
+                    $page = isset($_GET['resignation_page']) ? (int)$_GET['resignation_page'] : 1;
+                    $offset = ($page - 1) * $limit;
+                    $resignation_search = $_GET['resignation_search'] ?? '';
+                    $resignation_status = $_GET['resignation_status'] ?? '';
+                    $resignation_department = $_GET['resignation_department'] ?? '';
+                    $where = "1=1";
+                    if ($resignation_search !== '') {
+                        $esc = mysqli_real_escape_string($conn, $resignation_search);
+                        $where .= " AND (ua.full_name LIKE '%$esc%')";
+                    }
+                    if ($resignation_status !== '') {
+                        $esc = mysqli_real_escape_string($conn, $resignation_status);
+                        $where .= " AND r.status = '$esc'";
+                    }
+                    if ($resignation_department !== '') {
+                        $esc = mysqli_real_escape_string($conn, $resignation_department);
+                        $where .= " AND ua.department_id = '$esc'";
+                    }
+                    $resignation_query = "SELECT r.*, ua.full_name, d.name AS department_name FROM resignation r JOIN user_account ua ON r.employee_id = ua.user_id LEFT JOIN department d ON ua.department_id = d.department_id WHERE $where ORDER BY r.submitted_at DESC, r.resignation_id DESC LIMIT $limit OFFSET $offset";
+                    $resignation_result = mysqli_query($conn, $resignation_query);
+                    if ($resignation_result && mysqli_num_rows($resignation_result) > 0) {
+                        while ($row = mysqli_fetch_assoc($resignation_result)) {
+                            echo "<tr>";
+                            echo "<td>" . htmlspecialchars($row['full_name']) . "</td>";
+                            echo "<td>" . htmlspecialchars($row['department_name'] ?? '-') . "</td>";
+                            echo "<td>" . htmlspecialchars($row['reason']) . "</td>";
+                            echo "<td>" . ucfirst($row['status']) . "</td>";
+                            echo "<td>" . htmlspecialchars($row['submitted_at']) . "</td>";
+                            echo '<td>';
+                            echo '<form method="POST" style="display:inline;">';
+                            echo '<input type="hidden" name="resignation_id" value="' . htmlspecialchars($row['resignation_id']) . '">';
+                            echo '<select name="new_status" class="form-control form-control-sm d-inline-block" style="width:auto;display:inline-block;">';
+                            foreach (["pending", "approved", "rejected"] as $statusOpt) {
+                                $selected = ($row['status'] === $statusOpt) ? 'selected' : '';
+                                echo '<option value="' . $statusOpt . '" ' . $selected . '>' . ucfirst($statusOpt) . '</option>';
+                            }
+                            echo '</select> ';
+                            echo '<button type="submit" name="update_resignation_status" class="btn btn-primary btn-sm">Update</button>';
+                            echo '</form>';
+                            echo '</td>';
+                            echo "</tr>";
+                        }
+                    } else {
+                        echo '<tr><td colspan="6" class="text-center">No resignation requests found.</td></tr>';
+                    }
+                    // Pagination
+                    $count_query = "SELECT COUNT(*) as total FROM resignation r JOIN user_account ua ON r.employee_id = ua.user_id LEFT JOIN department d ON ua.department_id = d.department_id WHERE $where";
+                    $count_result = mysqli_query($conn, $count_query);
+                    $total = 0;
+                    if ($count_result) {
+                        $row = mysqli_fetch_assoc($count_result);
+                        $total = $row['total'];
+                    }
+                    $totalPages = ceil($total / $limit);
+                    ?>
+                    </tbody>
+                </table>
+            </div>
+            <nav aria-label="Resignation page navigation">
+                <ul class="pagination justify-content-center">
+                    <li class="page-item <?php if($page <= 1){ echo 'disabled'; } ?>">
+                        <a class="page-link" href="<?php
+                            $params = $_GET;
+                            $params['resignation_page'] = $page - 1;
+                            echo ($page > 1) ? '?' . http_build_query($params) : '#';
+                        ?>">Previous</a>
+                    </li>
+                    <?php for($i = 1; $i <= $totalPages; $i++): ?>
+                        <li class="page-item <?php if($page == $i){ echo 'active'; } ?>">
+                            <a class="page-link" href="<?php
+                                $params = $_GET;
+                                $params['resignation_page'] = $i;
+                                echo '?' . http_build_query($params);
+                            ?>"><?php echo $i; ?></a>
+                        </li>
+                    <?php endfor; ?>
+                    <li class="page-item <?php if($page >= $totalPages){ echo 'disabled'; } ?>">
+                        <a class="page-link" href="<?php
+                            $params = $_GET;
+                            $params['resignation_page'] = $page + 1;
+                            echo ($page < $totalPages) ? '?' . http_build_query($params) : '#';
+                        ?>">Next</a>
+                    </li>
+                </ul>
+            </nav>
         </div>
     <?php endif; ?>
 
