@@ -428,6 +428,35 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['view_attendance'])) {
     log_activity($conn, $_SESSION['user_id'], 'Attendance Management', 'view_record', 
                 'attendance', $attendance_id, $details);
 }
+
+// Handle attendance update
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_attendance'])) {
+    $attendance_id = intval($_POST['attendance_id']);
+    $time_in = $_POST['time_in'];
+    
+    // Get current attendance record
+    $current_query = "SELECT a.*, ua.full_name FROM attendance a 
+                     JOIN user_account ua ON a.employee_id = ua.user_id 
+                     WHERE a.attendance_id = $attendance_id";
+    $current_result = mysqli_query($conn, $current_query);
+    $current_record = mysqli_fetch_assoc($current_result);
+    
+    // Update the time in
+    $update_query = "UPDATE attendance SET check_in = '$time_in' WHERE attendance_id = $attendance_id";
+    if (mysqli_query($conn, $update_query)) {
+        // Log the activity
+        $details = "Updated time in for " . $current_record['full_name'] . 
+                  " on " . $current_record['date'] . 
+                  " from " . $current_record['check_in'] . 
+                  " to " . $time_in;
+        log_activity($conn, $_SESSION['user_id'], 'Attendance Management', 'update_time_in', 
+                    'attendance', $attendance_id, $details);
+        
+        // Redirect to refresh the page
+        header('Location: ' . $_SERVER['HTTP_REFERER']);
+        exit();
+    }
+}
 ?>
 
 <?php include 'adminHeader.php'; ?>
@@ -489,13 +518,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['view_attendance'])) {
     <?php if ($show === 'dashboard'): ?>
         <?php
         // Total Employees (role = 'Employee')
-        $employee_count = 0;
+            $employee_count = 0;
         $sql = "SELECT COUNT(*) as total FROM user_account ua JOIN role r ON ua.role_id = r.role_id WHERE r.name = 'Employee'";
-        $result = mysqli_query($conn, $sql);
-        if ($result && $row = mysqli_fetch_assoc($result)) {
-            $employee_count = (int)$row['total'];
-        }
-
+            $result = mysqli_query($conn, $sql);
+            if ($result && $row = mysqli_fetch_assoc($result)) {
+                $employee_count = (int)$row['total'];
+            }
+        
         // Total Departments
         $department_count = 0;
         $sql = "SELECT COUNT(*) as total FROM department";
@@ -625,10 +654,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['view_attendance'])) {
                                                     <td><?= $row['check_out'] ? date('g:i A', strtotime($row['check_out'])) : '-' ?></td>
                                                     <td><?= ucfirst($row['status']) ?></td>
                                                     <td>
-                                                        <form method="POST" style="display:inline;">
-                                                            <input type="hidden" name="attendance_id" value="<?= htmlspecialchars($row['attendance_id']) ?>">
-                                                            <button type="submit" name="view_attendance" class="btn btn-danger btn-sm">View</button>
-                                                        </form>
+                                                        <button type="button" class="btn btn-danger btn-sm view-attendance" 
+                                                            data-attendance-id="<?= htmlspecialchars($row['attendance_id']) ?>"
+                                                            data-employee-name="<?= htmlspecialchars($row['full_name']) ?>"
+                                                            data-department="<?= htmlspecialchars($row['department_name'] ?? '-') ?>"
+                                                            data-date="<?= htmlspecialchars($row['date']) ?>"
+                                                            data-time-in="<?= ($row['check_in'] ? date('H:i', strtotime($row['check_in'])) : '') ?>"
+                                                            data-time-out="<?= ($row['check_out'] ? date('g:i A', strtotime($row['check_out'])) : '-') ?>"
+                                                            data-status="<?= htmlspecialchars($row['status']) ?>">View</button>
                                                     </td>
                                                 </tr>
                                             <?php endforeach; ?>
@@ -864,10 +897,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['view_attendance'])) {
                             echo "<td>" . ($row['check_out'] ? date('g:i A', strtotime($row['check_out'])) : '-') . "</td>";
                             echo "<td>" . htmlspecialchars($status) . "</td>";
                             echo '<td>';
-                            echo '<form method="POST" style="display:inline;">';
-                            echo '<input type="hidden" name="attendance_id" value="' . htmlspecialchars($row['attendance_id']) . '">';
-                            echo '<button type="submit" name="view_attendance" class="btn btn-danger btn-sm">View</button>';
-                            echo '</form>';
+                            echo '<button type="button" class="btn btn-danger btn-sm view-attendance" 
+                                data-attendance-id="' . htmlspecialchars($row['attendance_id']) . '"
+                                data-employee-name="' . htmlspecialchars($row['full_name']) . '"
+                                data-department="' . htmlspecialchars($row['department_name'] ?? '-') . '"
+                                data-date="' . htmlspecialchars($row['date']) . '"
+                                data-time-in="' . ($row['check_in'] ? date('H:i', strtotime($row['check_in'])) : '') . '"
+                                data-time-out="' . ($row['check_out'] ? date('g:i A', strtotime($row['check_out'])) : '-') . '"
+                                data-status="' . htmlspecialchars($status) . '">View</button>';
                             echo '</td>';
                             echo "</tr>";
                         }
@@ -1457,7 +1494,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['view_attendance'])) {
                                             <input class="form-check-input department-checkbox" type="checkbox" id="dept<?= $dept['department_id'] ?>" name="departments[]" value="<?= $dept['department_id'] ?>">
                                             <label class="form-check-label" for="dept<?= $dept['department_id'] ?>"> <?= htmlspecialchars($dept['name']) ?> </label>
                                         </div>
-                                            <?php endforeach; ?>
+                                    <?php endforeach; ?>
                                 </div>
                             </div>
                             <div class="form-group mb-3">
@@ -1586,8 +1623,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['view_attendance'])) {
                                 </tr>
                             <?php endforeach; ?>
                         <?php endif; ?>
-                                        </tbody>
-                                    </table>
+                    </tbody>
+                </table>
             </div>
             <nav aria-label="Activity log page navigation">
                 <ul class="pagination justify-content-center">
@@ -1617,7 +1654,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['view_attendance'])) {
                 </ul>
             </nav>
         </div>
-                                <?php endif; ?>
+    <?php endif; ?>
 
     <?php if ($show === 'createAccount'): ?>
         <div id="createAccountFormContainer" style="display: block;">
@@ -1629,15 +1666,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['view_attendance'])) {
                 <div class="form-group">
                     <label for="fullName">Full Name</label>
                     <input type="text" class="form-control" id="fullName" name="fullName" required>
-                            </div>
+                </div>
                 <div class="form-group">
                     <label for="email">Email</label>
                     <input type="email" class="form-control" id="email" name="email" required>
-                        </div>
+                </div>
                 <div class="form-group">
                     <label for="password">Password</label>
                     <input type="password" class="form-control" id="password" name="password" required>
-                    </div>
+                </div>
                 <div class="form-group">
                     <label for="role">Role</label>
                     <select class="form-control" id="role" name="role" required>
@@ -1908,6 +1945,50 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['view_attendance'])) {
             </div>
         </div>
     </div>
+
+    <!-- Modal for View/Edit Attendance -->
+    <div class="modal fade" id="viewAttendanceModal" tabindex="-1" role="dialog" aria-labelledby="viewAttendanceModalLabel" aria-hidden="true">
+        <div class="modal-dialog" role="document">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="viewAttendanceModalLabel">View/Edit Attendance</h5>
+                    <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                        <span aria-hidden="true">&times;</span>
+                    </button>
+                </div>
+                <div class="modal-body">
+                    <form id="editAttendanceForm" method="POST" autocomplete="off">
+                        <input type="hidden" id="editAttendanceId" name="attendance_id">
+                        <div class="form-group">
+                            <label for="viewEmployeeName">Employee Name</label>
+                            <input type="text" class="form-control" id="viewEmployeeName" readonly>
+                        </div>
+                        <div class="form-group">
+                            <label for="viewDepartment">Department</label>
+                            <input type="text" class="form-control" id="viewDepartment" readonly>
+                        </div>
+                        <div class="form-group">
+                            <label for="viewDate">Date</label>
+                            <input type="text" class="form-control" id="viewDate" readonly>
+                        </div>
+                        <div class="form-group">
+                            <label for="editTimeIn">Time In</label>
+                            <input type="time" class="form-control" id="editTimeIn" name="time_in">
+                        </div>
+                        <div class="form-group">
+                            <label for="viewTimeOut">Time Out</label>
+                            <input type="text" class="form-control" id="viewTimeOut" readonly>
+                        </div>
+                        <div class="form-group">
+                            <label for="viewStatus">Status</label>
+                            <input type="text" class="form-control" id="viewStatus" readonly>
+                        </div>
+                        <button type="submit" class="btn btn-primary" name="update_attendance">Save Changes</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
 </div>
 
 <script>
@@ -2081,6 +2162,29 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['view_attendance'])) {
                 if (editDepartmentSelect) editDepartmentSelect.value = departmentId;
                 // Load job roles and select the current one
                 loadEditJobRoles(departmentId, jobRoleId);
+            });
+        });
+    });
+
+    // Add this to your existing script section
+    document.addEventListener('DOMContentLoaded', function() {
+        // Handle view attendance button clicks
+        document.querySelectorAll('.view-attendance').forEach(function(btn) {
+            btn.addEventListener('click', function() {
+                const modal = document.getElementById('viewAttendanceModal');
+                const form = document.getElementById('editAttendanceForm');
+                
+                // Set form values
+                document.getElementById('editAttendanceId').value = this.dataset.attendanceId;
+                document.getElementById('viewEmployeeName').value = this.dataset.employeeName;
+                document.getElementById('viewDepartment').value = this.dataset.department;
+                document.getElementById('viewDate').value = this.dataset.date;
+                document.getElementById('editTimeIn').value = this.dataset.timeIn;
+                document.getElementById('viewTimeOut').value = this.dataset.timeOut;
+                document.getElementById('viewStatus').value = this.dataset.status;
+                
+                // Show modal
+                $(modal).modal('show');
             });
         });
     });
