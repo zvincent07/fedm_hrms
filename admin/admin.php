@@ -766,7 +766,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_attendance']))
                             </div>
                             <div class="dashboard-card-value">
                                 <?php
-                                    $leave_req_query = "SELECT COUNT(*) as cnt FROM leave_request WHERE status = 'pending'";
+                                    $leave_req_query = "SELECT COUNT(*) as cnt FROM leave_application WHERE status = 'pending'";
                                     $leave_req_result = mysqli_query($conn, $leave_req_query);
                                     $leave_req_count = 0;
                                     if ($leave_req_result && $row = mysqli_fetch_assoc($leave_req_result)) {
@@ -850,8 +850,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_attendance']))
             </div>
             <div class="table-responsive">
                 <table class="table table-striped">
-                                        <thead>
-                                            <tr>
+                    <thead>
+                        <tr>
                             <th>Name(s)</th>
                             <th>Date</th>
                             <th>Time In</th>
@@ -866,17 +866,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_attendance']))
                     $page = isset($_GET['attendance_page']) ? (int)$_GET['attendance_page'] : 1;
                     $offset = ($page - 1) * $limit;
                     $attendance_search = $_GET['attendance_search'] ?? '';
-                    $attendance_date = $_GET['attendance_date'] ?? '';
                     $attendance_status = $_GET['attendance_status'] ?? '';
                     $attendance_department = $_GET['attendance_department'] ?? '';
                     $where = "1=1";
                     if ($attendance_search !== '') {
                         $esc = mysqli_real_escape_string($conn, $attendance_search);
                         $where .= " AND (ua.full_name LIKE '%$esc%')";
-                    }
-                    if ($attendance_date !== '') {
-                        $esc = mysqli_real_escape_string($conn, $attendance_date);
-                        $where .= " AND a.date = '$esc'";
                     }
                     if ($attendance_status !== '') {
                         $esc = mysqli_real_escape_string($conn, $attendance_status);
@@ -886,7 +881,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_attendance']))
                         $esc = mysqli_real_escape_string($conn, $attendance_department);
                         $where .= " AND ua.department_id = '$esc'";
                     }
-                    $attendance_query = "SELECT a.*, ua.full_name, d.name AS department_name FROM attendance a JOIN user_account ua ON a.employee_id = ua.user_id LEFT JOIN department d ON ua.department_id = d.department_id WHERE $where ORDER BY a.date DESC, a.attendance_id DESC LIMIT $limit OFFSET $offset";
+                    // Subquery to get only the latest attendance per employee
+                    $attendance_query = "SELECT a.*, ua.full_name, d.name AS department_name, jr.title AS job_title, SUM(TIMESTAMPDIFF(HOUR, a.check_in, a.check_out)) as total_hours
+                        FROM attendance a
+                        JOIN user_account ua ON a.employee_id = ua.user_id
+                        LEFT JOIN department d ON ua.department_id = d.department_id
+                        LEFT JOIN job_role jr ON ua.job_role_id = jr.job_role_id
+                        INNER JOIN (
+                            SELECT employee_id, MAX(date) AS max_date
+                            FROM attendance
+                            GROUP BY employee_id
+                        ) latest ON a.employee_id = latest.employee_id AND a.date = latest.max_date
+                        WHERE $where
+                        GROUP BY a.employee_id
+                        ORDER BY a.date DESC
+                        LIMIT $limit OFFSET $offset";
                     $attendance_result = mysqli_query($conn, $attendance_query);
                     if ($attendance_result && mysqli_num_rows($attendance_result) > 0) {
                         while ($row = mysqli_fetch_assoc($attendance_result)) {
@@ -901,12 +910,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_attendance']))
                             echo "<td>" . ($row['check_out'] ? date('g:i A', strtotime($row['check_out'])) : '-') . "</td>";
                             echo "<td>" . htmlspecialchars($status) . "</td>";
                             echo '<td>';
-                            echo '<button type="button" class="btn btn-danger btn-sm view-attendance" 
-                                data-attendance-id="' . htmlspecialchars($row['attendance_id']) . '"
+                            echo '<button type="button" class="btn btn-danger btn-sm view-attendance-modal" 
                                 data-employee-name="' . htmlspecialchars($row['full_name']) . '"
+                                data-job-title="' . htmlspecialchars($row['job_title'] ?? '-') . '"
                                 data-department="' . htmlspecialchars($row['department_name'] ?? '-') . '"
+                                data-total-hours="' . htmlspecialchars($row['total_hours'] ?? '0') . '"
                                 data-date="' . htmlspecialchars($row['date']) . '"
-                                data-time-in="' . ($row['check_in'] ? date('H:i', strtotime($row['check_in'])) : '') . '"
+                                data-time-in="' . ($row['check_in'] ? date('g:i A', strtotime($row['check_in'])) : '-') . '"
                                 data-time-out="' . ($row['check_out'] ? date('g:i A', strtotime($row['check_out'])) : '-') . '"
                                 data-status="' . htmlspecialchars($status) . '">View</button>';
                             echo '</td>';
@@ -915,75 +925,80 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_attendance']))
                     } else {
                         echo '<tr><td colspan="6" class="text-center">No attendance records found.</td></tr>';
                     }
-                    // Pagination
-                    $count_query = "SELECT COUNT(*) as total FROM attendance a JOIN user_account ua ON a.employee_id = ua.user_id LEFT JOIN department d ON ua.department_id = d.department_id WHERE $where";
-                    $count_result = mysqli_query($conn, $count_query);
-                    $total = 0;
-                    if ($count_result) {
-                        $row = mysqli_fetch_assoc($count_result);
-                        $total = $row['total'];
-                    }
-                    $totalPages = ceil($total / $limit);
                     ?>
                     </tbody>
                 </table>
             </div>
-            <nav aria-label="Attendance page navigation">
-                <ul class="pagination justify-content-center">
-                    <li class="page-item <?php if($page <= 1){ echo 'disabled'; } ?>">
-                        <a class="page-link" href="<?php
-                            $params = $_GET;
-                            $params['attendance_page'] = $page - 1;
-                            echo ($page > 1) ? '?' . http_build_query($params) : '#';
-                        ?>">Previous</a>
-                    </li>
-                    <?php for($i = 1; $i <= $totalPages; $i++): ?>
-                        <li class="page-item <?php if($page == $i){ echo 'active'; } ?>">
-                            <a class="page-link" href="<?php
-                                $params = $_GET;
-                                $params['attendance_page'] = $i;
-                                echo '?' . http_build_query($params);
-                            ?>"><?php echo $i; ?></a>
-                        </li>
-                    <?php endfor; ?>
-                    <li class="page-item <?php if($page >= $totalPages){ echo 'disabled'; } ?>">
-                        <a class="page-link" href="<?php
-                            $params = $_GET;
-                            $params['attendance_page'] = $page + 1;
-                            echo ($page < $totalPages) ? '?' . http_build_query($params) : '#';
-                        ?>">Next</a>
-                    </li>
-                </ul>
-            </nav>
+            <!-- Modal for Attendance Record (Read-only, styled) -->
+            <div class="modal fade" id="attendanceRecordModal" tabindex="-1" role="dialog" aria-labelledby="attendanceRecordModalLabel" aria-hidden="true">
+                <div class="modal-dialog" role="document">
+                    <div class="modal-content" style="border-radius:18px;background:#f6f6f6;box-shadow:0 2px 16px rgba(0,0,0,0.10);">
+                        <div class="modal-header" style="border-bottom:none;">
+                            <h5 class="modal-title w-100 text-center" id="attendanceRecordModalLabel" style="font-weight:bold;">Attendance Record</h5>
+                            <button type="button" class="close" data-dismiss="modal" aria-label="Close" style="position:absolute;right:18px;top:18px;font-size:1.5rem;">
+                                <span aria-hidden="true">&times;</span>
+                            </button>
+                        </div>
+                        <div class="modal-body" style="padding:28px 32px 32px 32px;">
+                            <div class="row mb-2">
+                                <div class="col-7">
+                                    <div><b>Name:</b> <span id="modalEmployeeName"></span></div>
+                                    <div><b>Job Title:</b> <span id="modalJobTitle"></span></div>
+                                    <div><b>Department:</b> <span id="modalDepartment"></span></div>
+                                </div>
+                                <div class="col-5 text-right">
+                                    <div><b>Total Working Hours:</b></div>
+                                    <div><span id="modalTotalHours"></span> hours</div>
+                                </div>
+                            </div>
+                            <hr style="margin:12px 0 18px 0;">
+                            <div style="background:#fff;border-radius:12px;padding:18px 18px 8px 18px;">
+                                <table class="table mb-0" style="background:transparent;">
+                                    <thead>
+                                        <tr style="background:#f6f6f6;">
+                                            <th>Date</th>
+                                            <th>Time In</th>
+                                            <th>Time Out</th>
+                                            <th>Status</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <tr style="background:#f8d7da;">
+                                            <td id="modalDate"></td>
+                                            <td id="modalTimeIn"></td>
+                                            <td id="modalTimeOut"></td>
+                                            <td id="modalStatus"></td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <script>
+            document.addEventListener('DOMContentLoaded', function() {
+                document.querySelectorAll('.view-attendance-modal').forEach(function(btn) {
+                    btn.addEventListener('click', function() {
+                        document.getElementById('modalEmployeeName').textContent = this.dataset.employeeName;
+                        document.getElementById('modalJobTitle').textContent = this.dataset.jobTitle;
+                        document.getElementById('modalDepartment').textContent = this.dataset.department;
+                        document.getElementById('modalTotalHours').textContent = this.dataset.totalHours;
+                        document.getElementById('modalDate').textContent = this.dataset.date;
+                        document.getElementById('modalTimeIn').textContent = this.dataset.timeIn;
+                        document.getElementById('modalTimeOut').textContent = this.dataset.timeOut;
+                        document.getElementById('modalStatus').textContent = this.dataset.status;
+                        $('#attendanceRecordModal').modal('show');
+                    });
+                });
+            });
+            </script>
         </div>
     <?php endif; ?>
 
     <?php if ($show === 'leave'): ?>
         <div id="leaveContainer" style="display: block;">
-            <h3>Employee Leave Requests</h3>
-            <?php
-            // Handle leave status update
-            if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_leave_status'])) {
-                $leave_id = intval($_POST['leave_id']);
-                $new_status = mysqli_real_escape_string($conn, $_POST['new_status']);
-                
-                // Get leave request details before update
-                $leave_details_query = "SELECT lr.*, ua.full_name FROM leave_request lr 
-                                      JOIN user_account ua ON lr.employee_id = ua.user_id 
-                                      WHERE lr.leave_id = $leave_id";
-                $leave_details_result = mysqli_query($conn, $leave_details_query);
-                $leave_details = mysqli_fetch_assoc($leave_details_result);
-                
-                $update_query = "UPDATE leave_request SET status = '$new_status' WHERE leave_id = $leave_id";
-                if (mysqli_query($conn, $update_query)) {
-                    // Log the activity
-                    $details = "Updated leave request status for " . $leave_details['full_name'] . 
-                              " from " . $leave_details['status'] . " to " . $new_status;
-                    log_activity($conn, $_SESSION['user_id'], 'Leave Management', 'update_status', 
-                                'leave_request', $leave_id, $details);
-                }
-            }
-            ?>
+            <h3>Employee Leave Records</h3>
             <div class="filter-section d-flex align-items-center mb-3 justify-content-between">
                 <form method="get" class="d-flex align-items-center" style="gap: 8px; width:100%;">
                     <input type="hidden" name="show" value="leave">
@@ -1011,12 +1026,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_attendance']))
                         <tr>
                             <th>Name(s)</th>
                             <th>Department</th>
+                            <th>Job Title</th>
+                            <th>Leave Date</th>
+                            <th>Resumption Date</th>
                             <th>Type</th>
-                            <th>Start Date</th>
-                            <th>End Date</th>
-                            <th>Duration</th>
-                            <th>Hand Over Document</th>
-                            <th>Reason</th>
                             <th>Status</th>
                             <th>Action</th>
                         </tr>
@@ -1037,101 +1050,123 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_attendance']))
                     }
                     if ($leave_date !== '') {
                         $esc = mysqli_real_escape_string($conn, $leave_date);
-                        $where .= " AND (lr.start_date <= '$esc' AND lr.end_date >= '$esc')";
+                        $where .= " AND (la.start_date <= '$esc' AND la.end_date >= '$esc')";
                     }
                     if ($leave_status !== '') {
                         $esc = mysqli_real_escape_string($conn, $leave_status);
-                        $where .= " AND lr.status = '$esc'";
+                        $where .= " AND la.status = '$esc'";
                     }
                     if ($leave_department !== '') {
                         $esc = mysqli_real_escape_string($conn, $leave_department);
                         $where .= " AND ua.department_id = '$esc'";
                     }
-                    $leave_query = "SELECT lr.*, ua.full_name, d.name AS department_name 
-    FROM leave_request lr 
-    JOIN user_account ua ON lr.employee_id = ua.user_id 
-    LEFT JOIN department d ON ua.department_id = d.department_id 
-    WHERE $where 
-    ORDER BY lr.requested_at DESC, lr.leave_id DESC 
-    LIMIT $limit OFFSET $offset";
+                    $leave_query = "SELECT la.*, ua.full_name, d.name AS department_name, jr.title AS job_title,
+                        (SELECT SUM(duration) FROM leave_application WHERE employee_id = la.employee_id) as total_leaves,
+                        (SELECT SUM(TIMESTAMPDIFF(HOUR, a.check_in, a.check_out)) FROM attendance a WHERE a.employee_id = la.employee_id) as total_hours
+                        FROM leave_application la
+                        JOIN user_account ua ON la.employee_id = ua.user_id
+                        LEFT JOIN department d ON ua.department_id = d.department_id
+                        LEFT JOIN job_role jr ON ua.job_role_id = jr.job_role_id
+                        WHERE $where
+                        ORDER BY la.applied_at DESC
+                        LIMIT $limit OFFSET $offset";
                     $leave_result = mysqli_query($conn, $leave_query);
                     if ($leave_result && mysqli_num_rows($leave_result) > 0) {
                         while ($row = mysqli_fetch_assoc($leave_result)) {
-                            $start = new DateTime($row['start_date']);
-                            $end = new DateTime($row['end_date']);
-                            $duration = $start->diff($end)->days + 1; // inclusive
-
+                            $leave_dates = date('m/d/Y', strtotime($row['start_date'])) . ' - ' . date('m/d/Y', strtotime($row['end_date']));
                             echo "<tr>";
                             echo "<td>" . htmlspecialchars($row['full_name']) . "</td>";
                             echo "<td>" . htmlspecialchars($row['department_name'] ?? '-') . "</td>";
-                            echo "<td>" . htmlspecialchars($row['type'] ?? '-') . "</td>";
-                            echo "<td>" . htmlspecialchars($row['start_date']) . "</td>";
-                            echo "<td>" . htmlspecialchars($row['end_date']) . "</td>";
-                            echo "<td>" . $duration . " day(s)</td>";
-                            if (!empty($row['hand_over_document'])) {
-                                echo "<td><a href='" . htmlspecialchars($row['hand_over_document']) . "' target='_blank'>View</a></td>";
-                            } else {
-                                echo "<td>-</td>";
-                            }
-                            echo "<td>" . htmlspecialchars($row['reason']) . "</td>";
+                            echo "<td>" . htmlspecialchars($row['job_title'] ?? '-') . "</td>";
+                            echo "<td>" . htmlspecialchars($leave_dates) . "</td>";
+                            echo "<td>" . htmlspecialchars($row['resumption_date']) . "</td>";
+                            echo "<td>" . htmlspecialchars($row['leave_type']) . "</td>";
                             echo "<td>" . ucfirst($row['status']) . "</td>";
                             echo '<td>';
-                            echo '<form method="POST" style="display:inline;">';
-                            echo '<input type="hidden" name="leave_id" value="' . htmlspecialchars($row['leave_id']) . '">';
-                            echo '<select name="new_status" class="form-control form-control-sm d-inline-block" style="width:auto;display:inline-block;">';
-                            foreach (["pending", "approved", "rejected"] as $statusOpt) {
-                                $selected = ($row['status'] === $statusOpt) ? 'selected' : '';
-                                echo '<option value="' . $statusOpt . '" ' . $selected . '>' . ucfirst($statusOpt) . '</option>';
-                            }
-                            echo '</select> ';
-                            echo '<button type="submit" name="update_leave_status" class="btn btn-primary btn-sm">Update</button>';
-                            echo '</form>';
+                            echo '<button type="button" class="btn btn-danger btn-sm view-leave-modal" 
+                                data-employee-name="' . htmlspecialchars($row['full_name']) . '"
+                                data-job-title="' . htmlspecialchars($row['job_title'] ?? '-') . '"
+                                data-department="' . htmlspecialchars($row['department_name'] ?? '-') . '"
+                                data-total-hours="' . htmlspecialchars($row['total_hours'] ?? '0') . '"
+                                data-total-leaves="' . htmlspecialchars($row['total_leaves'] ?? '0') . '"
+                                data-leave-dates="' . htmlspecialchars($leave_dates) . '"
+                                data-resumption-date="' . htmlspecialchars($row['resumption_date']) . '"
+                                data-type="' . htmlspecialchars($row['leave_type']) . '"
+                                data-status="' . ucfirst($row['status']) . '">View</button>';
                             echo '</td>';
                             echo "</tr>";
                         }
                     } else {
-                        echo '<tr><td colspan="11" class="text-center">No leave requests found.</td></tr>';
+                        echo '<tr><td colspan="8" class="text-center">No leave records found.</td></tr>';
                     }
-                    // Pagination
-                    $count_query = "SELECT COUNT(*) as total FROM leave_request lr JOIN user_account ua ON lr.employee_id = ua.user_id LEFT JOIN department d ON ua.department_id = d.department_id WHERE $where";
-                    $count_result = mysqli_query($conn, $count_query);
-                    $total = 0;
-                    if ($count_result) {
-                        $row = mysqli_fetch_assoc($count_result);
-                        $total = $row['total'];
-                    }
-                    $totalPages = ceil($total / $limit);
                     ?>
                     </tbody>
                 </table>
             </div>
-            <nav aria-label="Leave page navigation">
-                <ul class="pagination justify-content-center">
-                    <li class="page-item <?php if($page <= 1){ echo 'disabled'; } ?>">
-                        <a class="page-link" href="<?php
-                            $params = $_GET;
-                            $params['leave_page'] = $page - 1;
-                            echo ($page > 1) ? '?' . http_build_query($params) : '#';
-                        ?>">Previous</a>
-                    </li>
-                    <?php for($i = 1; $i <= $totalPages; $i++): ?>
-                        <li class="page-item <?php if($page == $i){ echo 'active'; } ?>">
-                            <a class="page-link" href="<?php
-                                $params = $_GET;
-                                $params['leave_page'] = $i;
-                                echo '?' . http_build_query($params);
-                            ?>"><?php echo $i; ?></a>
-                        </li>
-                    <?php endfor; ?>
-                    <li class="page-item <?php if($page >= $totalPages){ echo 'disabled'; } ?>">
-                        <a class="page-link" href="<?php
-                            $params = $_GET;
-                            $params['leave_page'] = $page + 1;
-                            echo ($page < $totalPages) ? '?' . http_build_query($params) : '#';
-                        ?>">Next</a>
-                    </li>
-                </ul>
-            </nav>
+            <!-- Modal for Leave Record (Read-only, styled) -->
+            <div class="modal fade" id="leaveRecordModal" tabindex="-1" role="dialog" aria-labelledby="leaveRecordModalLabel" aria-hidden="true">
+                <div class="modal-dialog" role="document">
+                    <div class="modal-content" style="border-radius:18px;background:#f6f6f6;box-shadow:0 2px 16px rgba(0,0,0,0.10);">
+                        <div class="modal-header" style="border-bottom:none;">
+                            <h5 class="modal-title w-100 text-center" id="leaveRecordModalLabel" style="font-weight:bold;">Leave Record</h5>
+                            <button type="button" class="close" data-dismiss="modal" aria-label="Close" style="position:absolute;right:18px;top:18px;font-size:1.5rem;">
+                                <span aria-hidden="true">&times;</span>
+                            </button>
+                        </div>
+                        <div class="modal-body" style="padding:28px 32px 32px 32px;">
+                            <div class="row mb-2">
+                                <div class="col-7">
+                                    <div><b>Name:</b> <span id="leaveModalEmployeeName"></span></div>
+                                    <div><b>Job Title:</b> <span id="leaveModalJobTitle"></span></div>
+                                    <div><b>Department:</b> <span id="leaveModalDepartment"></span></div>
+                                </div>
+                                <div class="col-5 text-right">
+                                    <div><b>Total Working Hours:</b></div>
+                                    <div><span id="leaveModalTotalHours"></span> hours</div>
+                                    <div><b>Total Number of Leave:</b></div>
+                                    <div><span id="leaveModalTotalLeaves"></span></div>
+                                </div>
+                            </div>
+                            <hr style="margin:12px 0 18px 0;">
+                            <div style="background:#fff;border-radius:12px;padding:18px 18px 8px 18px;">
+                                <table class="table mb-0" style="background:transparent;">
+                                    <thead>
+                                        <tr style="background:#f6f6f6;">
+                                            <th>Leave Date</th>
+                                            <th>Resumption Date</th>
+                                            <th>Type</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <tr style="background:#f8d7da;">
+                                            <td id="leaveModalLeaveDates"></td>
+                                            <td id="leaveModalResumptionDate"></td>
+                                            <td id="leaveModalType"></td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <script>
+            document.addEventListener('DOMContentLoaded', function() {
+                document.querySelectorAll('.view-leave-modal').forEach(function(btn) {
+                    btn.addEventListener('click', function() {
+                        document.getElementById('leaveModalEmployeeName').textContent = this.dataset.employeeName;
+                        document.getElementById('leaveModalJobTitle').textContent = this.dataset.jobTitle;
+                        document.getElementById('leaveModalDepartment').textContent = this.dataset.department;
+                        document.getElementById('leaveModalTotalHours').textContent = this.dataset.totalHours;
+                        document.getElementById('leaveModalTotalLeaves').textContent = this.dataset.totalLeaves;
+                        document.getElementById('leaveModalLeaveDates').textContent = this.dataset.leaveDates;
+                        document.getElementById('leaveModalResumptionDate').textContent = this.dataset.resumptionDate;
+                        document.getElementById('leaveModalType').textContent = this.dataset.type;
+                        $('#leaveRecordModal').modal('show');
+                    });
+                });
+            });
+            </script>
         </div>
     <?php endif; ?>
 
