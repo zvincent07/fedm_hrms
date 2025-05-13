@@ -467,14 +467,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_attendance']))
 
 <?php include 'adminHeader.php'; ?>
 
-<div class="sidebar">
+<div class="sidebar" style="display: flex; flex-direction: column; height: 100vh; min-height: 0; overflow: hidden;">
     <!-- Added top icon for sidebar -->
-    <div style="display: flex; flex-direction: column; align-items: center; margin-top: 28px;">
+    <div style="display: flex; flex-direction: column; align-items: center; margin-top: 28px; flex-shrink: 0;">
         <div style="background: #b30000; border-radius: 50%; width: 104px; height: 104px; display: flex; align-items: center; justify-content: center;">
             <i class="fa-solid fa-user" style="color: #fff; font-size: 3.6rem;"></i>
         </div>
     </div>
-    <div class="nav-section">
+    <!-- Scrollable nav-section for small screens -->
+    <div class="nav-section" style="flex: 1 1 auto; min-height: 0; overflow-y: auto; margin-bottom: 0;">
         <a class="nav-item" id="dashboardBtn" href="?show=dashboard">
             <i class="fa-solid fa-map"></i>
             Dashboard
@@ -509,7 +510,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_attendance']))
             Change Password
         </a>
     </div>
-    <div class="nav-bottom">
+    <div class="nav-bottom" style="flex-shrink: 0; margin-bottom: 18px;">
         <form method="POST" style="width:100%;">
             <button type="submit" name="logout" class="nav-item" style="width:100%;background:none;border:none;outline:none;box-shadow:none;display:flex;align-items:center;gap:16px;padding:12px 28px;font-weight:600;font-size:1.1rem;color:#b30000;transition:background 0.18s, color 0.18s;border-radius:14px;">
                 <i class="fa-solid fa-right-from-bracket"></i>
@@ -518,6 +519,39 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_attendance']))
         </form>
     </div>
 </div>
+<style>
+/* Ensure sidebar is always full height and nav-section is scrollable if needed */
+@media (max-width: 900px) {
+    .sidebar {
+        position: static !important;
+        width: 100% !important;
+        border-radius: 0 !important;
+        left: 0 !important;
+        top: 0 !important;
+        min-height: 0 !important;
+        height: 100vh !important;
+        display: flex !important;
+        flex-direction: column !important;
+        overflow: hidden !important;
+    }
+    .sidebar .nav-section {
+        flex: 1 1 auto !important;
+        min-height: 0 !important;
+        overflow-y: auto !important;
+        margin-bottom: 0 !important;
+        max-height: none !important;
+    }
+    .sidebar .nav-bottom {
+        flex-shrink: 0 !important;
+        margin-bottom: 18px !important;
+    }
+}
+@media (max-width: 600px) {
+    .sidebar {
+        height: 100dvh !important;
+    }
+}
+</style>
 
 <div class="main-content" id="mainContentArea">
 
@@ -628,213 +662,160 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_attendance']))
                     </div>
                 </div>
             </div>
+            <style>
+                .dashboard-card-row {
+                    justify-content: center;
+                }
+                .dashboard-card-col {
+                    flex: 0 0 220px;
+                    max-width: 220px;
+                    min-width: 220px;
+                    margin-bottom: 24px;
+                    display: flex;
+                    align-items: stretch;
+                }
+                .dashboard-card {
+                    background: #fff;
+                    border-radius: 16px;
+                    padding: 24px 0 18px 0;
+                    text-align: center;
+                    box-shadow: 0 2px 8px rgba(0,0,0,0.07);
+                    width: 100%;
+                    height: 170px;
+                    display: flex;
+                    flex-direction: column;
+                    align-items: center;
+                    justify-content: center;
+                }
+                .dashboard-card .dashboard-card-icon {
+                    font-size: 2.5rem;
+                    color: #b30000;
+                    margin-bottom: 6px;
+                }
+                .dashboard-card .dashboard-card-value {
+                    font-size: 2.2rem;
+                    font-weight: bold;
+                    color: #b30000;
+                }
+                .dashboard-card .dashboard-card-label {
+                    font-size: 1.1rem;
+                    color: #b30000;
+                    font-weight: 600;
+                    margin-top: 2px;
+                }
+            </style>
             <div class="container mt-4">
-                <div class="row">
-                    <!-- Attendance Monitoring (placeholder) -->
-                    <div class="col-md-6">
-                        <div class="card shadow-sm mb-4">
-                            <div class="card-header bg-primary text-white">
-                                <h4>Attendance Monitoring</h4>
+                <div class="row dashboard-card-row">
+                    <!-- Present Today -->
+                    <div class="col-md-2 dashboard-card-col">
+                        <div class="dashboard-card" style="background: #f8cccc;">
+                            <div class="dashboard-card-icon">
+                                <i class="fa-solid fa-user"></i>
                             </div>
-                            <div class="card-body" style="max-height: 240px; overflow-y: auto;">
-                                <?php if (empty($attendance_today)): ?>
-                                    <div class="text-center text-muted">No attendance records for today.</div>
-                                <?php else: ?>
-                                    <table class="table table-sm table-bordered mb-0">
-                                        <thead>
-                                            <tr>
-                                                <th>Name</th>
-                                                <th>Department</th>
-                                                <th>Check In</th>
-                                                <th>Check Out</th>
-                                                <th>Status</th>
-                                                <th>Action</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody>
-                                            <?php foreach ($attendance_today as $row): ?>
-                                                <tr>
-                                                    <td><?= htmlspecialchars($row['full_name']) ?></td>
-                                                    <td><?= htmlspecialchars($row['department_name'] ?? '-') ?></td>
-                                                    <td><?= $row['check_in'] ? date('g:i A', strtotime($row['check_in'])) : '-' ?></td>
-                                                    <td><?= $row['check_out'] ? date('g:i A', strtotime($row['check_out'])) : '-' ?></td>
-                                                    <td><?= ucfirst($row['status']) ?></td>
-                                                    <td>
-                                                        <button type="button" class="btn btn-danger btn-sm view-attendance" 
-                                                            data-attendance-id="<?= htmlspecialchars($row['attendance_id']) ?>"
-                                                            data-employee-name="<?= htmlspecialchars($row['full_name']) ?>"
-                                                            data-department="<?= htmlspecialchars($row['department_name'] ?? '-') ?>"
-                                                            data-date="<?= htmlspecialchars($row['date']) ?>"
-                                                            data-time-in="<?= ($row['check_in'] ? date('H:i', strtotime($row['check_in'])) : '') ?>"
-                                                            data-time-out="<?= ($row['check_out'] ? date('g:i A', strtotime($row['check_out'])) : '-') ?>"
-                                                            data-status="<?= htmlspecialchars($row['status']) ?>">View</button>
-                                                    </td>
-                                                </tr>
-                                            <?php endforeach; ?>
-                                        </tbody>
-                                    </table>
-                                <?php endif; ?>
-                            </div>
+                            <div class="dashboard-card-value"><?= (int)($attendance_summary['present'] ?? 0) ?></div>
+                            <div class="dashboard-card-label">Present Today</div>
                         </div>
                     </div>
-                    <!-- Leave Management (placeholder) -->
-                    <div class="col-md-6">
-                        <div class="card shadow-sm mb-4">
-                            <div class="card-header bg-success text-white">
-                                <h4>Leave Management</h4>
+                    <!-- Absent Today -->
+                    <div class="col-md-2 dashboard-card-col">
+                        <div class="dashboard-card" style="background: #f3a6a6;">
+                            <div class="dashboard-card-icon">
+                                <i class="fa-solid fa-user-slash"></i>
                             </div>
-                            <div class="card-body" style="max-height: 240px; overflow-y: auto;">
-                                <?php if (empty($pending_leaves)): ?>
-                                    <div class="text-center text-muted">No pending leave requests.</div>
-                                <?php else: ?>
-                                    <table class="table table-sm table-bordered mb-0">
-                                        <thead>
-                                            <tr>
-                                                <th>Name</th>
-                                                <th>Department</th>
-                                                <th>Type</th>
-                                                <th>Start Date</th>
-                                                <th>End Date</th>
-                                                <th>Duration</th>
-                                                <th>Hand Over Document</th>
-                                                <th>Reason</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody>
-                                            <?php foreach ($pending_leaves as $row): ?>
-                                                <?php
-                                                    $start = new DateTime($row['start_date']);
-                                                    $end = new DateTime($row['end_date']);
-                                                    $duration = $start->diff($end)->days + 1; // inclusive
-                                                ?>
-                                                <tr>
-                                                    <td><?= htmlspecialchars($row['full_name']) ?></td>
-                                                    <td><?= htmlspecialchars($row['department_name'] ?? '-') ?></td>
-                                                    <td><?= htmlspecialchars($row['type'] ?? '-') ?></td>
-                                                    <td><?= htmlspecialchars($row['start_date']) ?></td>
-                                                    <td><?= htmlspecialchars($row['end_date']) ?></td>
-                                                    <td><?= $duration ?> day(s)</td>
-                                                    <td>
-                                                        <?php if (!empty($row['hand_over_document'])): ?>
-                                                            <a href="<?= htmlspecialchars($row['hand_over_document']) ?>" target="_blank">View</a>
-                                                        <?php else: ?>
-                                                            -
-                                                        <?php endif; ?>
-                                                    </td>
-                                                    <td><?= htmlspecialchars($row['reason']) ?></td>
-                                                </tr>
-                                            <?php endforeach; ?>
-                                        </tbody>
-                                    </table>
-                                <?php endif; ?>
+                            <div class="dashboard-card-value"><?= (int)($attendance_summary['absent'] ?? 0) ?></div>
+                            <div class="dashboard-card-label">Absent Today</div>
+                        </div>
+                    </div>
+                    <!-- Late Today -->
+                    <div class="col-md-2 dashboard-card-col">
+                        <div class="dashboard-card" style="background: #ffe5e5;">
+                            <div class="dashboard-card-icon">
+                                <i class="fa-solid fa-clock"></i>
                             </div>
+                            <div class="dashboard-card-value"><?= (int)($attendance_summary['late'] ?? 0) ?></div>
+                            <div class="dashboard-card-label">Late Today</div>
+                        </div>
+                    </div>
+                    <!-- Pending Mod. Request -->
+                    <div class="col-md-2 dashboard-card-col">
+                        <div class="dashboard-card" style="background: #ffeaea;">
+                            <div class="dashboard-card-icon">
+                                <i class="fa-solid fa-hourglass-half"></i>
+                            </div>
+                            <div class="dashboard-card-value">
+                                <?php
+                                    $pending_mod_query = "SELECT COUNT(*) as cnt FROM attendance_modification WHERE status = 'pending'";
+                                    $pending_mod_result = mysqli_query($conn, $pending_mod_query);
+                                    $pending_mod_count = 0;
+                                    if ($pending_mod_result && $row = mysqli_fetch_assoc($pending_mod_result)) {
+                                        $pending_mod_count = (int)$row['cnt'];
+                                    }
+                                    echo $pending_mod_count;
+                                ?>
+                            </div>
+                            <div class="dashboard-card-label">Pending Mod. Request</div>
                         </div>
                     </div>
                 </div>
-                <div class="row mt-4">
-                    <!-- Resignations (placeholder) -->
-                    <div class="col-md-6">
-                        <div class="card shadow-sm mb-4">
-                            <div class="card-header bg-danger text-white">
-                                <h4>Resignations</h4>
+                <div class="row dashboard-card-row">
+                    <!-- Leave Requests -->
+                    <div class="col-md-2 dashboard-card-col">
+                        <div class="dashboard-card" style="background: #ffeaea;">
+                            <div class="dashboard-card-icon">
+                                <i class="fa-solid fa-calendar-days"></i>
                             </div>
-                            <div class="card-body" style="max-height: 240px; overflow-y: auto;">
-                                <?php if (empty($pending_resignations)): ?>
-                                    <div class="text-center text-muted">No pending resignation requests.</div>
-                                <?php else: ?>
-                                    <table class="table table-sm table-bordered mb-0">
-                                        <thead>
-                                            <tr>
-                                                <th>Name</th>
-                                                <th>Department</th>
-                                                <th>Reason</th>
-                                                <th>Submitted</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody>
-                                            <?php foreach ($pending_resignations as $row): ?>
-                                                <tr>
-                                                    <td><?= htmlspecialchars($row['full_name']) ?></td>
-                                                    <td><?= htmlspecialchars($row['department_name'] ?? '-') ?></td>
-                                                    <td><?= htmlspecialchars($row['reason']) ?></td>
-                                                    <td><?= date('M d, Y', strtotime($row['submitted_at'])) ?></td>
-                                                </tr>
-                                            <?php endforeach; ?>
-                                        </tbody>
-                                    </table>
-                                <?php endif; ?>
+                            <div class="dashboard-card-value">
+                                <?php
+                                    $leave_req_query = "SELECT COUNT(*) as cnt FROM leave_request WHERE status = 'pending'";
+                                    $leave_req_result = mysqli_query($conn, $leave_req_query);
+                                    $leave_req_count = 0;
+                                    if ($leave_req_result && $row = mysqli_fetch_assoc($leave_req_result)) {
+                                        $leave_req_count = (int)$row['cnt'];
+                                    }
+                                    echo $leave_req_count;
+                                ?>
                             </div>
+                            <div class="dashboard-card-label">Leave Requests</div>
                         </div>
                     </div>
-                    <!-- Admin Notices -->
-                    <div class="col-md-6">
-                        <div class="card shadow-sm mb-4">
-                            <div class="card-header bg-warning text-dark">
-                                <h4>Recent Notices</h4>
+                    <!-- Approved Leave this Month -->
+                    <div class="col-md-2 dashboard-card-col">
+                        <div class="dashboard-card" style="background: #fff2d6;">
+                            <div class="dashboard-card-icon">
+                                <i class="fa-solid fa-file-circle-check"></i>
                             </div>
-                            <div class="card-body" style="max-height: 240px; overflow-y: auto;">
-                                <?php if (empty($recent_notifications)): ?>
-                                    <div class="text-center text-muted">No notifications available</div>
-                                <?php else: ?>
-                                    <div class="list-group">
-                                        <?php foreach ($recent_notifications as $notice): ?>
-                                            <div class="list-group-item">
-                                                <div class="d-flex w-100 justify-content-between">
-                                                    <h6 class="mb-1"><?= htmlspecialchars($notice['title']) ?></h6>
-                                                    <small class="text-muted"><?= date('M d, Y h:i A', strtotime($notice['created_at'])) ?></small>
-                                                </div>
-                                                <p class="mb-1"><?= htmlspecialchars($notice['content']) ?></p>
-                                                <div class="d-flex justify-content-between align-items-center">
-                                                    <small class="text-muted">
-                                                        Sent by: <?= htmlspecialchars($notice['sender_name']) ?>
-                                                    </small>
-                                                </div>
-                                            </div>
-                                        <?php endforeach; ?>
-                                    </div>
-                                <?php endif; ?>
+                            <div class="dashboard-card-value">
+                                <?php
+                                    $approved_leave_query = "SELECT COUNT(*) as cnt FROM leave_request WHERE status = 'approved' AND MONTH(requested_at) = MONTH(CURDATE()) AND YEAR(requested_at) = YEAR(CURDATE())";
+                                    $approved_leave_result = mysqli_query($conn, $approved_leave_query);
+                                    $approved_leave_count = 0;
+                                    if ($approved_leave_result && $row = mysqli_fetch_assoc($approved_leave_result)) {
+                                        $approved_leave_count = (int)$row['cnt'];
+                                    }
+                                    echo $approved_leave_count;
+                                ?>
                             </div>
+                            <div class="dashboard-card-label">Approved Leave<br>this Month</div>
                         </div>
                     </div>
-                </div>
-                <div class="row mt-4">
-                    <!-- Employees Overview -->
-                    <div class="col-md-6">
-                        <div class="card shadow-sm mb-4">
-                            <div class="card-header bg-info text-white">
-                                <h4>Employees Overview</h4>
+                    <!-- Resignation Requests -->
+                    <div class="col-md-2 dashboard-card-col">
+                        <div class="dashboard-card" style="background: #f3a6a6;">
+                            <div class="dashboard-card-icon">
+                                <i class="fa-solid fa-folder"></i>
                             </div>
-                            <div class="card-body" style="max-height: 240px;">
-                                <p class="mt-3">Total Employees: <?= $total_employees ?></p>
-                                <ul class="list-group mt-3" style="max-height: 150px; overflow-y: auto;">
-                                    <?php if (empty($employees_overview)): ?>
-                                        <li class="list-group-item">No data available</li>
-                                    <?php else: ?>
-                                        <?php foreach ($employees_overview as $overview): ?>
-                                            <li class="list-group-item"><?= htmlspecialchars($overview['department']) ?>: <?= htmlspecialchars($overview['count']) ?></li>
-                                        <?php endforeach; ?>
-                                    <?php endif; ?>
-                                </ul>
+                            <div class="dashboard-card-value">
+                                <?php
+                                    $resignation_req_query = "SELECT COUNT(*) as cnt FROM resignation WHERE status = 'pending'";
+                                    $resignation_req_result = mysqli_query($conn, $resignation_req_query);
+                                    $resignation_req_count = 0;
+                                    if ($resignation_req_result && $row = mysqli_fetch_assoc($resignation_req_result)) {
+                                        $resignation_req_count = (int)$row['cnt'];
+                                    }
+                                    echo $resignation_req_count;
+                                ?>
                             </div>
-                        </div>
-                    </div>
-                    <!-- Activity Logs -->
-                    <div class="col-md-6">
-                        <div class="card shadow-sm mb-4">
-                            <div class="card-header bg-secondary text-white">
-                                <h4>Recent Activity Logs</h4>
-                            </div>
-                            <div class="card-body" style="max-height: 240px;">
-                                <ul class="list-group" style="max-height: 200px; overflow-y: auto;">
-                                    <?php if (empty($activity_logs)): ?>
-                                        <li class="list-group-item">No activity logs available</li>
-                                    <?php else: ?>
-                                        <?php foreach ($activity_logs as $log): ?>
-                                            <li class="list-group-item"><?= htmlspecialchars($log['module']) ?> - <?= htmlspecialchars($log['action']) ?> at <?= $log['created_at'] ?></li>
-                                        <?php endforeach; ?>
-                                    <?php endif; ?>
-                                </ul>
-                            </div>
+                            <div class="dashboard-card-label">Resignation Requests</div>
                         </div>
                     </div>
                 </div>
