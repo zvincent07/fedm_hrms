@@ -162,6 +162,10 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 header('Location: views/employee.php');
                 exit();
             }
+            elseif ((int)$user['role_id'] === (int)$roles['Manager']) {
+                header('Location: manager/manager.php');
+                exit();
+            }
         }
     }
     $error = "Invalid credentials.";
