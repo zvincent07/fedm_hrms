@@ -175,19 +175,6 @@ while ($row = mysqli_fetch_assoc($res)) {
                 </div>
                 <div class="col-md-4">
                     <div class="dashboard-card">
-                        <h5 class="fw-bold mb-3">Recent Notifications</h5>
-                        <ul class="list-group">
-                        <?php foreach ($notifications as $notif): ?>
-                            <li class="list-group-item">
-                                <strong><?= htmlspecialchars($notif['title']) ?></strong><br>
-                                <span class="text-muted small"><?= htmlspecialchars($notif['content']) ?></span>
-                            </li>
-                        <?php endforeach; ?>
-                        </ul>
-                    </div>
-                </div>
-                <div class="col-md-4">
-                    <div class="dashboard-card">
                         <h5 class="fw-bold mb-3">Quick Actions</h5>
                         <div class="quick-action">
                             <a href="#" class="btn btn-outline-primary">Add Employee</a>
@@ -758,41 +745,59 @@ while ($row = mysqli_fetch_assoc($res)) {
             </div>
         </div>
         <div id="notificationListContainer" style="display: none;">
-            <h3>Notifications</h3>
-            <form method="get" class="d-flex align-items-center mb-3" style="gap: 12px;">
-                <input type="date" name="notif_start" value="<?= htmlspecialchars($_GET['notif_start'] ?? '') ?>" class="form-control" style="max-width: 170px;">
-                <input type="date" name="notif_end" value="<?= htmlspecialchars($_GET['notif_end'] ?? '') ?>" class="form-control" style="max-width: 170px;">
-                <button type="submit" class="btn btn-primary">Filter</button>
-                <a href="manager.php" class="btn btn-secondary" title="Reset"><i class="bi bi-arrow-clockwise"></i></a>
-            </form>
-            <div class="card" style="border-radius:16px;box-shadow:0 2px 12px rgba(0,0,0,0.08);max-width:700px;margin:auto;">
-                <div class="card-body p-0">
-                    <?php
-                    $notif_start = $_GET['notif_start'] ?? '';
-                    $notif_end = $_GET['notif_end'] ?? '';
-                    $where = "1=1";
-                    if ($notif_start !== '') {
-                        $esc = mysqli_real_escape_string($conn, $notif_start);
-                        $where .= " AND created_at >= '$esc 00:00:00'";
-                    }
-                    if ($notif_end !== '') {
-                        $esc = mysqli_real_escape_string($conn, $notif_end);
-                        $where .= " AND created_at <= '$esc 23:59:59'";
-                    }
-                    $notif_query = "SELECT * FROM notification WHERE $where ORDER BY created_at DESC LIMIT 50";
-                    $notif_result = mysqli_query($conn, $notif_query);
-                    if ($notif_result && mysqli_num_rows($notif_result) > 0) {
-                        while ($notif = mysqli_fetch_assoc($notif_result)) {
-                            echo '<div class="notification-card-header d-flex align-items-center justify-content-between" style="padding:20px 28px 12px 28px;border-bottom:1px solid #eee;font-size:1.2rem;font-weight:bold;color:#2956a8;background:#fff;">';
-                            echo htmlspecialchars($notif['title']);
-                            echo '<span class="text-muted small" style="font-size:0.95rem;font-weight:400;">' . date('M d, Y g:i A', strtotime($notif['created_at'])) . '</span>';
-                            echo '</div>';
-                            echo '<div class="px-4 pb-3 pt-2" style="font-size:1.08rem;">' . htmlspecialchars($notif['content']) . '</div>';
-                        }
-                    } else {
-                        echo '<div class="text-center text-muted p-4">No notifications found for the selected date range.</div>';
-                    }
-                    ?>
+            <div class="d-flex justify-content-center align-items-start pt-4">
+                <div class="bg-white rounded-4 shadow-sm w-100" style="max-width: 950px;">
+                    <div class="px-5 pt-5 pb-2">
+                        <h3 class="fw-bold mb-4" style="color:#8a5a1e; font-size:2rem; text-align:center;">Notifications</h3>
+                        <div class="list-group list-group-flush">
+                            <?php
+                            $notif_query = "SELECT n.*, COALESCE(ua.full_name, ua.email, 'Admin') as sender_name FROM notification n LEFT JOIN user_account ua ON n.sender_id = ua.user_id ORDER BY n.created_at DESC LIMIT 50";
+                            $notif_result = mysqli_query($conn, $notif_query);
+                            function formatNotificationTime($timestamp, $scheduled_date = null) {
+                                $now = new DateTime();
+                                $notification_time = new DateTime($timestamp);
+                                if ($scheduled_date) {
+                                    $scheduled = new DateTime($scheduled_date);
+                                    if ($scheduled->format('Y-m-d') === $now->format('Y-m-d')) {
+                                        return 'Posted today at ' . $scheduled->format('g:i A');
+                                    } else if ($scheduled->format('Y-m-d') === $now->modify('-1 day')->format('Y-m-d')) {
+                                        return 'Posted yesterday at ' . $scheduled->format('g:i A');
+                                    } else if ($scheduled->format('Y') === $now->format('Y')) {
+                                        return 'Posted on ' . $scheduled->format('M d') . ' at ' . $scheduled->format('g:i A');
+                                    } else {
+                                        return 'Posted on ' . $scheduled->format('M d, Y') . ' at ' . $scheduled->format('g:i A');
+                                    }
+                                }
+                                if ($notification_time->format('Y-m-d') === $now->format('Y-m-d')) {
+                                    return $notification_time->format('g:i A');
+                                } else if ($notification_time->format('Y-m-d') === $now->modify('-1 day')->format('Y-m-d')) {
+                                    return 'Yesterday ' . $notification_time->format('g:i A');
+                                } else if ($notification_time->format('Y') === $now->format('Y')) {
+                                    return $notification_time->format('M d, g:i A');
+                                } else {
+                                    return $notification_time->format('M d, Y g:i A');
+                                }
+                            }
+                            if ($notif_result && mysqli_num_rows($notif_result) > 0) {
+                                while ($notif = mysqli_fetch_assoc($notif_result)) {
+                                    $time_display = formatNotificationTime($notif['created_at'], $notif['scheduled_date'] ?? null);
+                                    echo '<div class="list-group-item d-flex justify-content-between align-items-start py-4 px-0 border-0 border-bottom">';
+                                    echo '<div class="flex-grow-1">';
+                                    echo '<div class="fw-bold" style="font-size:1.1rem;color:#111;">' . htmlspecialchars($notif['title']) . '</div>';
+                                    echo '<div style="font-size:1rem;color:#111;">' . nl2br(htmlspecialchars($notif['content'])) . '</div>';
+                                    if (!empty($notif['sender_name'])) {
+                                        echo '<div class="mt-1" style="font-size:0.9rem;color:#111;">From: ' . htmlspecialchars($notif['sender_name']) . '</div>';
+                                    }
+                                    echo '</div>';
+                                    echo '<div class="ms-3" style="font-size:0.9rem; min-width:110px; text-align:right;color:#111;">' . $time_display . '</div>';
+                                    echo '</div>';
+                                }
+                            } else {
+                                echo '<div class="text-center text-muted" style="padding: 32px 0; color:#111;">No notifications available</div>';
+                            }
+                            ?>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
