@@ -221,9 +221,9 @@ while ($row = mysqli_fetch_assoc($res)) {
                         <tr>
                             <th>Full Name</th>
                             <th>Email</th>
-                            <th>Role</th>
                             <th>Department</th>
                             <th>Job Title</th>
+                            <th>Rate</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -237,6 +237,8 @@ while ($row = mysqli_fetch_assoc($res)) {
                             $esc = mysqli_real_escape_string($conn, $search);
                             $where .= " AND (ua.full_name LIKE '%$esc%' OR ua.email LIKE '%$esc%')";
                         }
+                        // Only show users with the Employee role
+                        $where .= " AND r.name = 'Employee'";
                         if ($filterRole !== '') {
                             $esc = mysqli_real_escape_string($conn, $filterRole);
                             $where .= " AND ua.role_id = '$esc'";
@@ -249,7 +251,7 @@ while ($row = mysqli_fetch_assoc($res)) {
                             $esc = mysqli_real_escape_string($conn, $filterJobRole);
                             $where .= " AND ua.job_role_id = '$esc'";
                         }
-                        $userQuery = "SELECT ua.user_id, ua.full_name, ua.email, r.name AS role_name, d.name AS department_name, jr.title AS job_title
+                        $userQuery = "SELECT ua.user_id, ua.full_name, ua.email, r.name AS role_name, d.name AS department_name, jr.title AS job_title, ua.manager_rating
                                       FROM user_account ua
                                       LEFT JOIN role r ON ua.role_id = r.role_id
                                       LEFT JOIN department d ON ua.department_id = d.department_id
@@ -262,9 +264,12 @@ while ($row = mysqli_fetch_assoc($res)) {
                                 echo "<tr>";
                                 echo "<td>" . htmlspecialchars($user['full_name']) . "</td>";
                                 echo "<td>" . htmlspecialchars($user['email']) . "</td>";
-                                echo "<td>" . htmlspecialchars($user['role_name'] ?? 'N/A') . "</td>";
                                 echo "<td>" . htmlspecialchars($user['department_name'] ?? 'N/A') . "</td>";
                                 echo "<td>" . htmlspecialchars($user['job_title'] ?? 'N/A') . "</td>";
+                                echo '<td>';
+                                echo (isset($user['manager_rating']) && $user['manager_rating'] !== null ? number_format($user['manager_rating'], 1) : '-') .
+                                    ' <button class="btn btn-sm btn-outline-primary rate-btn" data-userid="' . $user['user_id'] . '" data-username="' . htmlspecialchars($user['full_name']) . '" data-currentrate="' . htmlspecialchars($user['manager_rating']) . '">Rate</button>';
+                                echo '</td>';
                                 echo "</tr>";
                             }
                         }
@@ -859,6 +864,85 @@ while ($row = mysqli_fetch_assoc($res)) {
     </div>
   </div>
 </div>
+<!-- Rate Modal -->
+<div class="modal fade" id="rateModal" tabindex="-1" aria-labelledby="rateModalLabel" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <form id="rateForm">
+        <div class="modal-header">
+          <h5 class="modal-title" id="rateModalLabel">Rate Employee</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body">
+          <input type="hidden" name="user_id" id="rateUserId">
+          <div class="mb-3">
+            <label class="form-label">Employee</label>
+            <input type="text" class="form-control" id="rateUserName" readonly>
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Punctuality</label>
+            <select class="form-select" name="punctuality" id="ratePunctuality" required>
+              <option value="">Select rating</option>
+              <option value="1">1</option>
+              <option value="2">2</option>
+              <option value="3">3</option>
+              <option value="4">4</option>
+              <option value="5">5</option>
+            </select>
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Work Quality</label>
+            <select class="form-select" name="work_quality" id="rateWorkQuality" required>
+              <option value="">Select rating</option>
+              <option value="1">1</option>
+              <option value="2">2</option>
+              <option value="3">3</option>
+              <option value="4">4</option>
+              <option value="5">5</option>
+            </select>
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Productivity</label>
+            <select class="form-select" name="productivity" id="rateProductivity" required>
+              <option value="">Select rating</option>
+              <option value="1">1</option>
+              <option value="2">2</option>
+              <option value="3">3</option>
+              <option value="4">4</option>
+              <option value="5">5</option>
+            </select>
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Teamwork</label>
+            <select class="form-select" name="teamwork" id="rateTeamwork" required>
+              <option value="">Select rating</option>
+              <option value="1">1</option>
+              <option value="2">2</option>
+              <option value="3">3</option>
+              <option value="4">4</option>
+              <option value="5">5</option>
+            </select>
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Professionalism</label>
+            <select class="form-select" name="professionalism" id="rateProfessionalism" required>
+              <option value="">Select rating</option>
+              <option value="1">1</option>
+              <option value="2">2</option>
+              <option value="3">3</option>
+              <option value="4">4</option>
+              <option value="5">5</option>
+            </select>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+          <button type="submit" class="btn btn-primary">Save Rating</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
 <script>
 document.addEventListener('DOMContentLoaded', function() {
     const navLinks = document.querySelectorAll('.nav-mgr-link');
@@ -999,6 +1083,39 @@ document.addEventListener('DOMContentLoaded', function() {
         leaveList.style.display = 'none';
         resignationList.style.display = 'none';
         notificationList.style.display = 'block';
+    });
+
+    document.querySelectorAll('.rate-btn').forEach(function(btn) {
+        btn.addEventListener('click', function() {
+            document.getElementById('rateUserId').value = this.dataset.userid;
+            document.getElementById('rateUserName').value = this.dataset.username;
+            // Optionally clear previous values
+            document.getElementById('ratePunctuality').value = '';
+            document.getElementById('rateWorkQuality').value = '';
+            document.getElementById('rateProductivity').value = '';
+            document.getElementById('rateTeamwork').value = '';
+            document.getElementById('rateProfessionalism').value = '';
+            var modal = new bootstrap.Modal(document.getElementById('rateModal'));
+            modal.show();
+        });
+    });
+
+    document.getElementById('rateForm').addEventListener('submit', function(e) {
+        e.preventDefault();
+        var formData = new FormData(this);
+        fetch('ajax/rate_employee.php', {
+            method: 'POST',
+            body: formData
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                location.reload();
+            } else {
+                alert(data.error || 'Failed to save rating.');
+            }
+        })
+        .catch(() => alert('Failed to save rating.'));
     });
 });
 </script>
