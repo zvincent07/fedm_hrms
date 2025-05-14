@@ -166,7 +166,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 header('Location: views/employee.php');
                 exit();
             } elseif ((int)$user['role_id'] === (isset($roles['manager']) ? (int)$roles['manager'] : -1)) {
-                header('Location: manager/manager.php');
+                header('Location: views/manager.php');
                 exit();
             } elseif ((int)$user['role_id'] === (isset($roles['hr']) ? (int)$roles['hr'] : -1)) {
                 header('Location: admin/admin.php');
@@ -176,6 +176,8 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     }
     $error = "Invalid credentials.";
 }
+
+$present_today = mysqli_fetch_assoc(mysqli_query($conn, "SELECT COUNT(DISTINCT employee_id) as cnt FROM attendance WHERE date = CURDATE() AND status = 'present'"))['cnt'];
 ?>
 
 <div class="container-fluid login-container">
@@ -247,4 +249,81 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             `;
         }
     });
+</script>
+
+<div class="flex-grow-1 p-4">
+    <div id="dashboardContent">
+        <div class="row g-4 mb-4">
+            <!-- ... summary cards ... -->
+        </div>
+        <div class="row g-4">
+            <!-- ... dashboard cards ... -->
+        </div>
+    </div>
+    <div id="employeeListContainer" style="display: none;">
+        <h3>User Management</h3>
+        <div class="table-responsive">
+            <table class="table table-striped">
+                <thead>
+                    <tr>
+                        <th>Full Name</th>
+                        <th>Email</th>
+                        <th>Role</th>
+                        <th>Department</th>
+                        <th>Job Title</th>
+                        <th>Created At</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <?php
+                    $userQuery = "SELECT ua.user_id, ua.full_name, ua.email, r.name AS role_name, 
+                                  d.name AS department_name, 
+                                  jr.title AS job_title,
+                                  ua.created_at 
+                                  FROM user_account ua
+                                  JOIN role r ON ua.role_id = r.role_id 
+                                  LEFT JOIN department d ON ua.department_id = d.department_id
+                                  LEFT JOIN job_role jr ON ua.job_role_id = jr.job_role_id
+                                  ORDER BY ua.created_at DESC";
+                    $userResult = mysqli_query($conn, $userQuery);
+                    if ($userResult) {
+                        while ($user = mysqli_fetch_assoc($userResult)) {
+                            echo "<tr>";
+                            echo "<td>" . htmlspecialchars($user['full_name']) . "</td>";
+                            echo "<td>" . htmlspecialchars($user['email']) . "</td>";
+                            echo "<td>" . htmlspecialchars($user['role_name']) . "</td>";
+                            echo "<td>" . htmlspecialchars($user['department_name'] ?? 'N/A') . "</td>";
+                            echo "<td>" . htmlspecialchars($user['job_title'] ?? 'N/A') . "</td>";
+                            echo "<td>" . htmlspecialchars($user['created_at']) . "</td>";
+                            echo "</tr>";
+                        }
+                    }
+                    ?>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const navLinks = document.querySelectorAll('.nav-mgr-link');
+    const dashboardContent = document.getElementById('dashboardContent');
+    const employeeList = document.getElementById('employeeListContainer');
+
+    navLinks.forEach(link => {
+        link.addEventListener('click', function(e) {
+            e.preventDefault();
+            navLinks.forEach(l => l.classList.remove('active'));
+            this.classList.add('active');
+            if (this.textContent.trim().includes('Employee')) {
+                dashboardContent.style.display = 'none';
+                employeeList.style.display = 'block';
+            } else if (this.textContent.trim().includes('Dashboard')) {
+                dashboardContent.style.display = 'block';
+                employeeList.style.display = 'none';
+            }
+        });
+    });
+});
 </script>
