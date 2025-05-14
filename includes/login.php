@@ -148,22 +148,28 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             $roleResult = mysqli_query($conn, $roleQuery);
             $roles = [];
             while ($role = mysqli_fetch_assoc($roleResult)) {
-                $roles[$role['name']] = $role['role_id'];
+                // Normalize role names to lowercase for reliable comparison
+                $roles[strtolower($role['name'])] = $role['role_id'];
             }
+
+            // Normalize user's role name for comparison
+            $userRoleName = strtolower($user['role_name']);
 
             error_log("User Role ID: " . $user['role_id']);
-            error_log("Admin Role ID: " . $roles['Admin']);
+            error_log("Admin Role ID: " . (isset($roles['admin']) ? $roles['admin'] : 'N/A'));
             error_log("User Role Name: " . $user['role_name']);
 
-            if ((int)$user['role_id'] === (int)$roles['Admin']) {
+            if ((int)$user['role_id'] === (isset($roles['admin']) ? (int)$roles['admin'] : -1)) {
                 header('Location: admin/admin.php');
                 exit();
-            } elseif ((int)$user['role_id'] === (int)$roles['Employee']) {
+            } elseif ((int)$user['role_id'] === (isset($roles['employee']) ? (int)$roles['employee'] : -1)) {
                 header('Location: views/employee.php');
                 exit();
-            }
-            elseif ((int)$user['role_id'] === (int)$roles['Manager']) {
+            } elseif ((int)$user['role_id'] === (isset($roles['manager']) ? (int)$roles['manager'] : -1)) {
                 header('Location: manager/manager.php');
+                exit();
+            } elseif ((int)$user['role_id'] === (isset($roles['hr']) ? (int)$roles['hr'] : -1)) {
+                header('Location: admin/admin.php');
                 exit();
             }
         }

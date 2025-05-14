@@ -2,8 +2,9 @@
 include '../config/db.php';
 session_start();
 
-// Check if user is logged in and is an admin
-if (!isset($_SESSION['user_id']) || !isset($_SESSION['role']) || $_SESSION['role'] !== 'Admin') {
+// Check if user is logged in and is an admin or HR
+if (!isset($_SESSION['user_id']) || !isset($_SESSION['role']) || 
+    ($_SESSION['role'] !== 'Admin' && $_SESSION['role'] !== 'Hr')) {
     // Log unauthorized access attempt
     if (isset($_SESSION['user_id'])) {
         log_activity($conn, $_SESSION['user_id'], 'Security', 'unauthorized_access', 'admin_page', null, 'Unauthorized access attempt to admin page');
@@ -40,7 +41,8 @@ if (isset($_SESSION['user_id']) && empty($_SESSION['login_logged'])) {
     } else {
         $details = "User logged in: user_id $user_id";
     }
-    log_activity($conn, $user_id, 'Admin', 'login', 'user_account', $user_id, $details);
+    $module = (isset($_SESSION['role']) && strtolower($_SESSION['role']) === 'hr') ? 'HR' : 'Admin';
+    log_activity($conn, $user_id, $module, 'login', 'user_account', $user_id, $details);
     $_SESSION['login_logged'] = true;
 }
 // --- END LOGIN ACTIVITY LOGGING PATCH ---
@@ -77,7 +79,8 @@ $current_user_id = $_SESSION['user_id'] ?? 1; // Example fallback to 1
 
 // Handle logout
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['logout'])) {
-    log_activity($conn, $current_user_id, 'Admin', 'logout', 'user_account', $current_user_id, 'Admin logged out');
+    $module = (isset($_SESSION['role']) && strtolower($_SESSION['role']) === 'hr') ? 'HR' : 'Admin';
+    log_activity($conn, $current_user_id, $module, 'logout', 'user_account', $current_user_id, $module . ' logged out');
     // Remove login_logged so next login is logged again
     unset($_SESSION['login_logged']);
     session_unset();
@@ -463,44 +466,107 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_attendance']))
         exit();
     }
 }
+
+// Get employee count per department
+$department_colors = [
+    'IT Department' => '#e48a2a',
+    'Operations' => '#f6a940',
+    'HR Department' => '#bfc6d1',
+    'Manager' => '#f7c873'
+];
+$departments_bubble = [];
+$sql = "SELECT d.name as department, COUNT(ua.user_id) as count
+        FROM user_account ua
+        JOIN department d ON ua.department_id = d.department_id
+        JOIN role r ON ua.role_id = r.role_id
+        WHERE r.name = 'Employee' OR r.name = 'Manager'
+        GROUP BY d.name";
+$result = mysqli_query($conn, $sql);
+if ($result) {
+    while ($row = mysqli_fetch_assoc($result)) {
+        $color = $department_colors[$row['department']] ?? '#ccc';
+        $departments_bubble[] = [
+            'name' => $row['department'],
+            'count' => $row['count'],
+            'color' => $color
+        ];
+    }
+}
+
+$is_hr = (isset($_SESSION['role']) && strtolower($_SESSION['role']) === 'hr');
+
+// Dynamic HR dashboard stats
+$present_today_count = 0;
+$leave_today_count = 0;
+$resignation_this_month_count = 0;
+
+// Total Employees Present Today
+$present_today_sql = "SELECT COUNT(DISTINCT a.employee_id) as cnt
+    FROM attendance a
+    JOIN user_account ua ON a.employee_id = ua.user_id
+    WHERE a.date = CURDATE() AND a.status = 'present'";
+$present_today_res = mysqli_query($conn, $present_today_sql);
+if ($present_today_res && $row = mysqli_fetch_assoc($present_today_res)) {
+    $present_today_count = (int)$row['cnt'];
+}
+
+// Total Employees on Leave Today
+$leave_today_sql = "SELECT COUNT(DISTINCT a.employee_id) as cnt
+    FROM attendance a
+    JOIN user_account ua ON a.employee_id = ua.user_id
+    WHERE a.date = CURDATE() AND a.status = 'leave'";
+$leave_today_res = mysqli_query($conn, $leave_today_sql);
+if ($leave_today_res && $row = mysqli_fetch_assoc($leave_today_res)) {
+    $leave_today_count = (int)$row['cnt'];
+}
+
+// Resignation this Month
+$resignation_month_sql = "SELECT COUNT(*) as cnt
+    FROM resignation
+    WHERE MONTH(submitted_at) = MONTH(CURDATE()) AND YEAR(submitted_at) = YEAR(CURDATE())";
+$resignation_month_res = mysqli_query($conn, $resignation_month_sql);
+if ($resignation_month_res && $row = mysqli_fetch_assoc($resignation_month_res)) {
+    $resignation_this_month_count = (int)$row['cnt'];
+}
 ?>
 
 <?php include 'adminHeader.php'; ?>
 
-<div class="sidebar" style="display: flex; flex-direction: column; height: 100vh; min-height: 0; overflow: hidden;">
-    <!-- Added top icon for sidebar -->
+<?php $is_hr = (isset($_SESSION['role']) && strtolower($_SESSION['role']) === 'hr'); ?>
+<div class="sidebar"
+    style="display: flex; flex-direction: column; height: 100vh; min-height: 0; overflow: hidden; background: <?= $is_hr ? '#ffffff' : '#fff' ?>;">
+    <!-- Profile Icon -->
     <div style="display: flex; flex-direction: column; align-items: center; margin-top: 28px; flex-shrink: 0;">
-        <div style="background: #b30000; border-radius: 50%; width: 104px; height: 104px; display: flex; align-items: center; justify-content: center;">
-            <i class="fa-solid fa-user" style="color: #fff; font-size: 3.6rem;"></i>
+        <div style="background: <?= $is_hr ? '#f37b20' : '#b30000' ?>; border-radius: 50%; width: 104px; height: 104px; display: flex; align-items: center; justify-content: center;">
+            <i class="fa-solid fa-user<?= $is_hr ? '-group' : '' ?>" style="color: #fff; font-size: 3.6rem;"></i>
         </div>
     </div>
-    <!-- Scrollable nav-section for small screens -->
+    <!-- Nav Section -->
     <div class="nav-section" style="flex: 1 1 auto; min-height: 0; overflow-y: auto; margin-bottom: 0;">
-        <a class="nav-item" id="dashboardBtn" href="?show=dashboard">
-            <i class="fa-solid fa-map"></i>
-            Dashboard
+        <a class="nav-item<?= $is_hr ? ' hr-nav-btn' : '' ?>" id="dashboardBtn" href="?show=dashboard">
+            <i class="fa-solid fa-map" style="color:<?= $is_hr ? '#a04a00' : '' ?>"></i>
+            <span style="color:<?= $is_hr ? '#a04a00' : '' ?>; font-weight: bold;">Dashboard</span>
         </a>
-        <!-- Employee Dropdown Toggle (not a link) -->
-        <div class="nav-item" id="employeeBtn" style="cursor:pointer;">
-            <i class="fa-solid fa-user"></i>
-            Employee
-            <i class="fa-solid fa-chevron-down" style="margin-left:auto;font-size:1rem;"></i>
+        <div class="nav-item<?= $is_hr ? ' hr-nav-btn' : '' ?>" id="employeeBtn" style="cursor:pointer;">
+            <i class="fa-solid fa-user" style="color:<?= $is_hr ? '#a04a00' : '' ?>"></i>
+            <span style="color:<?= $is_hr ? '#a04a00' : '' ?>; font-weight: bold;">Employee</span>
+            <i class="fa-solid fa-chevron-down" style="margin-left:auto;font-size:1rem;color:<?= $is_hr ? '#a04a00' : '' ?>"></i>
         </div>
-        <!-- Employee Submenu -->
         <div class="nav-sub" id="employeeSubMenu" style="display:none; margin-left: 32px;">
-            <a class="nav-sub-item" href="?show=employeeList">User Management</a>
-            <a class="nav-sub-item" href="?show=attendance">Attendance</a>
-            <a class="nav-sub-item" href="?show=leave">Leave</a>
-            <a class="nav-sub-item" href="?show=resignation">Resignation</a>
+            <a class="nav-sub-item<?= $is_hr ? ' hr-nav-btn' : '' ?>" href="?show=employeeList" style="color:<?= $is_hr ? '#a04a00' : '' ?>">User Management</a>
+            <a class="nav-sub-item<?= $is_hr ? ' hr-nav-btn' : '' ?>" href="?show=attendance" style="color:<?= $is_hr ? '#a04a00' : '' ?>">Attendance</a>
+            <a class="nav-sub-item<?= $is_hr ? ' hr-nav-btn' : '' ?>" href="?show=leave" style="color:<?= $is_hr ? '#a04a00' : '' ?>">Leave</a>
+            <a class="nav-sub-item<?= $is_hr ? ' hr-nav-btn' : '' ?>" href="?show=resignation" style="color:<?= $is_hr ? '#a04a00' : '' ?>">Resignation</a>
         </div>
-        <a class="nav-item" href="?show=notification">
-            <i class="fa-solid fa-paper-plane"></i>
-            Send Notification
+        <a class="nav-item<?= $is_hr ? ' hr-nav-btn' : '' ?>" href="?show=notification">
+            <i class="fa-solid fa-paper-plane" style="color:<?= $is_hr ? '#a04a00' : '' ?>"></i>
+            <span style="color:<?= $is_hr ? '#a04a00' : '' ?>; font-weight: bold;">Send Notification</span>
         </a>
-        <a class="nav-item" href="?show=activityLogs">
-            <i class="fa-regular fa-clock"></i>
-            Activity Logs
+        <a class="nav-item<?= $is_hr ? ' hr-nav-btn' : '' ?>" href="?show=activityLogs">
+            <i class="fa-regular fa-clock" style="color:<?= $is_hr ? '#a04a00' : '' ?>"></i>
+            <span style="color:<?= $is_hr ? '#a04a00' : '' ?>; font-weight: bold;">Activity Logs</span>
         </a>
+        <?php if (!$is_hr): ?>
         <a class="nav-item" id="createAccountBtn" href="?show=createAccount">
             <i class="fa-solid fa-user-plus"></i>
             Create Account
@@ -509,10 +575,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_attendance']))
             <i class="fa-solid fa-key"></i>
             Change Password
         </a>
+        <?php endif; ?>
     </div>
     <div class="nav-bottom" style="flex-shrink: 0; margin-bottom: 18px;">
         <form method="POST" style="width:100%;">
-            <button type="submit" name="logout" class="nav-item" style="width:100%;background:none;border:none;outline:none;box-shadow:none;display:flex;align-items:center;gap:16px;padding:12px 28px;font-weight:600;font-size:1.1rem;color:#b30000;transition:background 0.18s, color 0.18s;border-radius:14px;">
+            <button type="submit" name="logout" class="nav-item<?= $is_hr ? ' hr-nav-btn' : '' ?>" style="width:100%;background:none;border:none;outline:none;box-shadow:none;display:flex;align-items:center;gap:16px;padding:12px 28px;font-weight:600;font-size:1.1rem;color:<?= $is_hr ? '#a04a00' : '#b30000' ?>;transition:background 0.18s, color 0.18s;border-radius:14px;">
                 <i class="fa-solid fa-right-from-bracket"></i>
                 Logout
             </button>
@@ -520,307 +587,394 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_attendance']))
     </div>
 </div>
 <style>
-/* Ensure sidebar is always full height and nav-section is scrollable if needed */
-@media (max-width: 900px) {
-    .sidebar {
-        position: static !important;
-        width: 100% !important;
-        border-radius: 0 !important;
-        left: 0 !important;
-        top: 0 !important;
-        min-height: 0 !important;
-        height: 100vh !important;
+<?php if ($is_hr): ?>
+    .hr-nav-btn {
+        background: #fff !important;
+        border-radius: 16px !important;
+        margin: 18px 16px 0 16px !important;
+        padding: 18px 0 18px 24px !important;
+        color: #a04a00 !important;
+        font-weight: bold !important;
+        font-size: 1.15rem !important;
+        box-shadow: none !important;
+        border: none !important;
         display: flex !important;
-        flex-direction: column !important;
-        overflow: hidden !important;
+        align-items: center !important;
+        gap: 12px !important;
+        transition: background 0.18s, color 0.18s;
     }
-    .sidebar .nav-section {
-        flex: 1 1 auto !important;
-        min-height: 0 !important;
-        overflow-y: auto !important;
-        margin-bottom: 0 !important;
-        max-height: none !important;
+    .hr-nav-btn:hover {
+        background: #ffe5c2 !important;
+        color: #a04a00 !important;
     }
-    .sidebar .nav-bottom {
-        flex-shrink: 0 !important;
-        margin-bottom: 18px !important;
-    }
-}
-@media (max-width: 600px) {
-    .sidebar {
-        height: 100dvh !important;
-    }
-}
+<?php endif; ?>
 </style>
 
 <div class="main-content" id="mainContentArea">
 
     <?php if ($show === 'dashboard'): ?>
         <?php
-        // Total Employees (role = 'Employee')
-            $employee_count = 0;
-        $sql = "SELECT COUNT(*) as total FROM user_account ua JOIN role r ON ua.role_id = r.role_id WHERE r.name = 'Employee'";
+        $is_hr = (isset($_SESSION['role']) && (strtolower($_SESSION['role']) === 'hr'));
+        ?>
+        <?php if ($is_hr): ?>
+            <!-- HR DASHBOARD (matches your image) -->
+            <style>
+                .hr-dashboard-bg { background: #f4f4f7; min-height: 100vh; padding: 32px 0; }
+                .hr-summary-row { display: flex; gap: 24px; justify-content: center; margin-bottom: 32px; }
+                .hr-summary-card {
+                    border-radius: 12px;
+                    padding: 24px 32px;
+                    display: flex;
+                    align-items: center;
+                    gap: 18px;
+                    min-width: 220px;
+                    box-shadow: 0 2px 8px rgba(0,0,0,0.07);
+                    font-weight: 600;
+                    font-size: 1.2rem;
+                    background: #fff;
+                    color: #222;
+                }
+                .hr-summary-card .icon { font-size: 2.5rem; margin-right: 10px; }
+                .hr-summary-card.bg1 { background: #e9dfd3; }
+                .hr-summary-card.bg2 { background: #e48a2a; color: #fff; }
+                .hr-summary-card.bg3 { background: #f6a940; color: #fff; }
+                .hr-main-row { display: flex; gap: 32px; justify-content: center; }
+                .hr-card { background: #fff; border-radius: 12px; padding: 24px 24px 18px 24px; box-shadow: 0 2px 8px rgba(0,0,0,0.07); min-width: 260px; flex: 1; }
+                .hr-card h4 { font-size: 1.1rem; font-weight: 700; margin-bottom: 16px; }
+                .star { color: #f6a940; font-size: 1.1rem; }
+                .bubble-chart { display: flex; align-items: flex-end; gap: 18px; margin-top: 18px; justify-content: center; }
+                .bubble { display: flex; align-items: center; justify-content: center; border-radius: 50%; color: #fff; font-weight: bold; font-size: 1.2rem; position: relative; }
+                .bubble-label { position: absolute; bottom: -22px; left: 50%; transform: translateX(-50%); font-size: 0.95rem; color: #444; font-weight: 500; white-space: nowrap; }
+                .bubble-legend { display: flex; gap: 18px; margin-top: 18px; justify-content: center; }
+                .bubble-legend-item { display: flex; align-items: center; gap: 6px; font-size: 0.95rem; }
+                .bubble-legend-color { width: 14px; height: 14px; border-radius: 50%; display: inline-block; }
+            </style>
+            <div class="hr-dashboard-bg">
+                <div class="hr-summary-row">
+                    <div class="hr-summary-card bg1">
+                        <span class="icon"><i class="fa fa-user"></i></span>
+                        <div>
+                            <div style="font-size:2rem; font-weight:bold;"><?= $present_today_count ?></div>
+                            <div>Total Employees Present Today</div>
+                        </div>
+                    </div>
+                    <div class="hr-summary-card bg2">
+                        <span class="icon"><i class="fa fa-book"></i></span>
+                        <div>
+                            <div style="font-size:2rem; font-weight:bold;"><?= $leave_today_count ?></div>
+                            <div>Total Employees on Leave Today</div>
+                        </div>
+                    </div>
+                    <div class="hr-summary-card bg3">
+                        <span class="icon"><i class="fa fa-money-bill"></i></span>
+                        <div>
+                            <div style="font-size:2rem; font-weight:bold;"><?= $resignation_this_month_count ?></div>
+                            <div>Resignation this Month</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="hr-main-row">
+                    <div class="hr-card">
+                        <h4>Top-Rated Employees</h4>
+                        <ol style="padding-left: 18px;">
+                            <li style="margin-bottom: 8px;">John Doe <span style="margin-left: 8px;"><?php for ($i = 0; $i < 5; $i++): ?><span class="star">&#9733;</span><?php endfor; ?> 5.0</span></li>
+                            <li style="margin-bottom: 8px;">Ryan Jeremy <span style="margin-left: 8px;"><?php for ($i = 0; $i < 5; $i++): ?><span class="star">&#9733;</span><?php endfor; ?> 5.0</span></li>
+                            <li style="margin-bottom: 8px;">Christine Mendoza <span style="margin-left: 8px;"><?php for ($i = 0; $i < 5; $i++): ?><span class="star">&#9733;</span><?php endfor; ?> 5.0</span></li>
+                        </ol>
+                    </div>
+                    <div class="hr-card">
+                        <h4>Total Employee per Department</h4>
+                        <div class="bubble-chart" style="display: flex; align-items: flex-end; gap: 32px; justify-content: center;">
+                            <?php foreach ($departments_bubble as $bubble): 
+                                $size = 40 + min($bubble['count'] * 4, 80);
+                            ?>
+                                <div style="display: flex; flex-direction: column; align-items: center; min-width: 80px;">
+                                    <div class="bubble" style="width:<?= $size ?>px;height:<?= $size ?>px;background:<?= $bubble['color'] ?>;display:flex;align-items:center;justify-content:center;font-size:1.3em;font-weight:bold;color:#222;">
+                                        <?= $bubble['count'] ?>
+                                    </div>
+                                    <div style="margin-top: 8px; color: #222; font-weight: 600; font-size: 1em; text-align: center;"><?= htmlspecialchars($bubble['name']) ?></div>
+                                </div>
+                            <?php endforeach; ?>
+                        </div>
+                        <div class="bubble-legend" style="margin-top: 18px;">
+                            <?php foreach ($departments_bubble as $bubble): ?>
+                                <span class="bubble-legend-item" style="color:#222;">
+                                    <span class="bubble-legend-color" style="background:<?= $bubble['color'] ?>;margin-right:4px;"></span>
+                                    <?= htmlspecialchars($bubble['name']) ?>
+                                </span>
+                            <?php endforeach; ?>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        <?php else: ?>
+            <!-- ORIGINAL ADMIN DASHBOARD (unchanged, all features present) -->
+            <?php
+            // Total Employees (role = 'Employee')
+                $employee_count = 0;
+            $sql = "SELECT COUNT(*) as total FROM user_account ua JOIN role r ON ua.role_id = r.role_id WHERE r.name = 'Employee'";
+                $result = mysqli_query($conn, $sql);
+                if ($result && $row = mysqli_fetch_assoc($result)) {
+                    $employee_count = (int)$row['total'];
+                }
+            
+            // Total Departments
+            $department_count = 0;
+            $sql = "SELECT COUNT(*) as total FROM department";
             $result = mysqli_query($conn, $sql);
             if ($result && $row = mysqli_fetch_assoc($result)) {
-                $employee_count = (int)$row['total'];
+                $department_count = (int)$row['total'];
             }
-        
-        // Total Departments
-        $department_count = 0;
-        $sql = "SELECT COUNT(*) as total FROM department";
-        $result = mysqli_query($conn, $sql);
-        if ($result && $row = mysqli_fetch_assoc($result)) {
-            $department_count = (int)$row['total'];
-        }
 
-        // Resignations this month (status = 'approved')
-        $resignation_count = 0;
-        $sql = "SELECT COUNT(*) as total FROM resignation WHERE status = 'approved' AND MONTH(submitted_at) = MONTH(CURDATE()) AND YEAR(submitted_at) = YEAR(CURDATE())";
-        $result = mysqli_query($conn, $sql);
-        if ($result && $row = mysqli_fetch_assoc($result)) {
-            $resignation_count = (int)$row['total'];
-        }
-
-        // Recent Admin Notices (limit 10)
-        $admin_notices = [];
-        $notice_query = "SELECT an.title, an.message, an.created_at, ua.full_name as sender_name FROM admin_notice an LEFT JOIN user_account ua ON an.sender_id = ua.user_id ORDER BY an.created_at DESC LIMIT 10";
-        $notice_result = mysqli_query($conn, $notice_query);
-        if ($notice_result) {
-            while ($row = mysqli_fetch_assoc($notice_result)) {
-                $admin_notices[] = $row;
+            // Resignations this month (status = 'approved')
+            $resignation_count = 0;
+            $sql = "SELECT COUNT(*) as total FROM resignation WHERE status = 'approved' AND MONTH(submitted_at) = MONTH(CURDATE()) AND YEAR(submitted_at) = YEAR(CURDATE())";
+            $result = mysqli_query($conn, $sql);
+            if ($result && $row = mysqli_fetch_assoc($result)) {
+                $resignation_count = (int)$row['total'];
             }
-        }
 
-        // Employees Overview by Department
-        $employees_overview = [];
-        $employees_query = "SELECT d.name as department, COUNT(ua.user_id) as count FROM user_account ua JOIN department d ON ua.department_id = d.department_id JOIN role r ON ua.role_id = r.role_id WHERE r.name = 'Employee' GROUP BY d.name";
-        $employees_result = mysqli_query($conn, $employees_query);
-        if ($employees_result) {
-            while ($row = mysqli_fetch_assoc($employees_result)) {
-                $employees_overview[] = $row;
+            // Recent Admin Notices (limit 10)
+            $admin_notices = [];
+            $notice_query = "SELECT an.title, an.message, an.created_at, ua.full_name as sender_name FROM admin_notice an LEFT JOIN user_account ua ON an.sender_id = ua.user_id ORDER BY an.created_at DESC LIMIT 10";
+            $notice_result = mysqli_query($conn, $notice_query);
+            if ($notice_result) {
+                while ($row = mysqli_fetch_assoc($notice_result)) {
+                    $admin_notices[] = $row;
+                }
             }
-        }
 
-        // Total Employees (again, for Employees Overview)
-        $total_employees = 0;
-        $sql = "SELECT COUNT(*) as total FROM user_account ua JOIN role r ON ua.role_id = r.role_id WHERE r.name = 'Employee'";
-        $result = mysqli_query($conn, $sql);
-        if ($result && $row = mysqli_fetch_assoc($result)) {
-            $total_employees = (int)$row['total'];
-        }
-
-        // Recent Activity Logs (limit 10)
-        $activity_logs = [];
-        $activity_query = "SELECT al.*, ua.full_name AS user_name FROM activity_log al LEFT JOIN user_account ua ON al.user_id = ua.user_id ORDER BY al.created_at DESC LIMIT 10";
-        $activity_result = mysqli_query($conn, $activity_query);
-        if ($activity_result) {
-            while ($row = mysqli_fetch_assoc($activity_result)) {
-                $activity_logs[] = $row;
+            // Employees Overview by Department
+            $employees_overview = [];
+            $employees_query = "SELECT d.name as department, COUNT(ua.user_id) as count FROM user_account ua JOIN department d ON ua.department_id = d.department_id JOIN role r ON ua.role_id = r.role_id WHERE r.name = 'Employee' GROUP BY d.name";
+            $employees_result = mysqli_query($conn, $employees_query);
+            if ($employees_result) {
+                while ($row = mysqli_fetch_assoc($employees_result)) {
+                    $employees_overview[] = $row;
+                }
             }
-        }
-        ?>
-        <div id="dashboardContent" style="display: block;">
-            <h3 class="dashboard-title mb-5">Welcome to the Dashboard</h3>
-            <!-- Dashboard Summary Cards (Fully Centered) -->
-            <div style="display: flex; justify-content: center; align-items: center; width: 100%;">
-                <div class="d-flex mb-5" style="gap: 24px; width: 95%; justify-content: center; align-items: center; text-align: center;">
-                    <!-- Employees Card -->
-                    <div style="flex:1; max-width: 330px; min-width: 270px; display: flex; justify-content: center;">
-                        <div style="background: #e5d6d6; border-radius: 18px; padding: 28px 0 22px 0; width: 100%; height: 170px; display: flex; align-items: center; gap: 20px; box-shadow: 0 2px 12px rgba(0,0,0,0.07); justify-content: center;">
-                            <span style="font-size: 3rem; color: #111; margin-right: 8px;">
-                                <i class="fa-solid fa-user"></i>
-                            </span>
-                            <div>
-                                <div style="font-size: 2.2rem; font-weight: bold; color: #111; line-height: 1;"><?= $employee_count ?></div>
-                                <div style="font-size: 1rem; color: #111; font-weight: 700; margin-top: 2px;">Total Number of<br>Employees</div>
+
+            // Total Employees (again, for Employees Overview)
+            $total_employees = 0;
+            $sql = "SELECT COUNT(*) as total FROM user_account ua JOIN role r ON ua.role_id = r.role_id WHERE r.name = 'Employee'";
+            $result = mysqli_query($conn, $sql);
+            if ($result && $row = mysqli_fetch_assoc($result)) {
+                $total_employees = (int)$row['total'];
+            }
+
+            // Recent Activity Logs (limit 10)
+            $activity_logs = [];
+            $activity_query = "SELECT al.*, ua.full_name AS user_name FROM activity_log al LEFT JOIN user_account ua ON al.user_id = ua.user_id ORDER BY al.created_at DESC LIMIT 10";
+            $activity_result = mysqli_query($conn, $activity_query);
+            if ($activity_result) {
+                while ($row = mysqli_fetch_assoc($activity_result)) {
+                    $activity_logs[] = $row;
+                }
+            }
+            ?>
+            <div id="dashboardContent" style="display: block;">
+                <h3 class="dashboard-title mb-5">Welcome to the Dashboard</h3>
+                <!-- Dashboard Summary Cards (Fully Centered) -->
+                <div style="display: flex; justify-content: center; align-items: center; width: 100%;">
+                    <div class="d-flex mb-5" style="gap: 24px; width: 95%; justify-content: center; align-items: center; text-align: center;">
+                        <!-- Employees Card -->
+                        <div style="flex:1; max-width: 330px; min-width: 270px; display: flex; justify-content: center;">
+                            <div style="background: #e5d6d6; border-radius: 18px; padding: 28px 0 22px 0; width: 100%; height: 170px; display: flex; align-items: center; gap: 20px; box-shadow: 0 2px 12px rgba(0,0,0,0.07); justify-content: center;">
+                                <span style="font-size: 3rem; color: #111; margin-right: 8px;">
+                                    <i class="fa-solid fa-user"></i>
+                                </span>
+                                <div>
+                                    <div style="font-size: 2.2rem; font-weight: bold; color: #111; line-height: 1;"><?= $employee_count ?></div>
+                                    <div style="font-size: 1rem; color: #111; font-weight: 700; margin-top: 2px;">Total Number of<br>Employees</div>
+                                </div>
+                            </div>
+                        </div>
+                        <!-- Departments Card -->
+                        <div style="flex:1; max-width: 330px; min-width: 270px; display: flex; justify-content: center;">
+                            <div style="background: #8B0000; border-radius: 18px; padding: 28px 0 22px 0; width: 100%; height: 170px; display: flex; align-items: center; gap: 20px; box-shadow: 0 2px 12px rgba(0,0,0,0.07); justify-content: center;">
+                                <span style="font-size: 3rem; color: #fff; margin-right: 8px;">
+                                    <i class="fa-solid fa-building"></i>
+                                </span>
+                                <div>
+                                    <div style="font-size: 2.2rem; font-weight: bold; color: #fff; line-height: 1;"><?= $department_count ?></div>
+                                    <div style="font-size: 1rem; color: #fff; font-weight: 700; margin-top: 2px;">Departments</div>
+                                </div>
+                            </div>
+                        </div>
+                        <!-- Resignation Card -->
+                        <div style="flex:1; max-width: 330px; min-width: 270px; display: flex; justify-content: center;">
+                            <div style="background: #B22222; border-radius: 18px; padding: 28px 0 22px 0; width: 100%; height: 170px; display: flex; align-items: center; gap: 20px; box-shadow: 0 2px 12px rgba(0,0,0,0.07); justify-content: center;">
+                                <span style="font-size: 3rem; color: #fff; margin-right: 8px;">
+                                    <i class="fa-solid fa-user-slash"></i>
+                                </span>
+                                <div>
+                                    <div style="font-size: 2.2rem; font-weight: bold; color: #fff; line-height: 1;"><?= $resignation_count ?></div>
+                                    <div style="font-size: 1rem; color: #fff; font-weight: 700; margin-top: 2px;">Resignation<br>this Month</div>
+                                </div>
                             </div>
                         </div>
                     </div>
-                    <!-- Departments Card -->
-                    <div style="flex:1; max-width: 330px; min-width: 270px; display: flex; justify-content: center;">
-                        <div style="background: #8B0000; border-radius: 18px; padding: 28px 0 22px 0; width: 100%; height: 170px; display: flex; align-items: center; gap: 20px; box-shadow: 0 2px 12px rgba(0,0,0,0.07); justify-content: center;">
-                            <span style="font-size: 3rem; color: #fff; margin-right: 8px;">
-                                <i class="fa-solid fa-building"></i>
-                            </span>
-                            <div>
-                                <div style="font-size: 2.2rem; font-weight: bold; color: #fff; line-height: 1;"><?= $department_count ?></div>
-                                <div style="font-size: 1rem; color: #fff; font-weight: 700; margin-top: 2px;">Departments</div>
+                </div>
+                <style>
+                    .dashboard-card-row {
+                        justify-content: center;
+                    }
+                    .dashboard-card-col {
+                        flex: 0 0 220px;
+                        max-width: 220px;
+                        min-width: 220px;
+                        margin-bottom: 24px;
+                        display: flex;
+                        align-items: stretch;
+                    }
+                    .dashboard-card {
+                        background: #fff;
+                        border-radius: 16px;
+                        padding: 24px 0 18px 0;
+                        text-align: center;
+                        box-shadow: 0 2px 8px rgba(0,0,0,0.07);
+                        width: 100%;
+                        height: 170px;
+                        display: flex;
+                        flex-direction: column;
+                        align-items: center;
+                        justify-content: center;
+                    }
+                    .dashboard-card .dashboard-card-icon {
+                        font-size: 2.5rem;
+                        color: #b30000;
+                        margin-bottom: 6px;
+                    }
+                    .dashboard-card .dashboard-card-value {
+                        font-size: 2.2rem;
+                        font-weight: bold;
+                        color: #b30000;
+                    }
+                    .dashboard-card .dashboard-card-label {
+                        font-size: 1.1rem;
+                        color: #b30000;
+                        font-weight: 600;
+                        margin-top: 2px;
+                    }
+                </style>
+                <div class="container mt-4">
+                    <div class="row dashboard-card-row">
+                        <!-- Present Today -->
+                        <div class="col-md-2 dashboard-card-col">
+                            <div class="dashboard-card" style="background: #f8cccc;">
+                                <div class="dashboard-card-icon">
+                                    <i class="fa-solid fa-user"></i>
+                                </div>
+                                <div class="dashboard-card-value"><?= (int)($attendance_summary['present'] ?? 0) ?></div>
+                                <div class="dashboard-card-label">Present Today</div>
+                            </div>
+                        </div>
+                        <!-- Absent Today -->
+                        <div class="col-md-2 dashboard-card-col">
+                            <div class="dashboard-card" style="background: #f3a6a6;">
+                                <div class="dashboard-card-icon">
+                                    <i class="fa-solid fa-user-slash"></i>
+                                </div>
+                                <div class="dashboard-card-value"><?= (int)($attendance_summary['absent'] ?? 0) ?></div>
+                                <div class="dashboard-card-label">Absent Today</div>
+                            </div>
+                        </div>
+                        <!-- Late Today -->
+                        <div class="col-md-2 dashboard-card-col">
+                            <div class="dashboard-card" style="background: #ffe5e5;">
+                                <div class="dashboard-card-icon">
+                                    <i class="fa-solid fa-clock"></i>
+                                </div>
+                                <div class="dashboard-card-value"><?= (int)($attendance_summary['late'] ?? 0) ?></div>
+                                <div class="dashboard-card-label">Late Today</div>
+                            </div>
+                        </div>
+                        <!-- Pending Mod. Request -->
+                        <div class="col-md-2 dashboard-card-col">
+                            <div class="dashboard-card" style="background: #ffeaea;">
+                                <div class="dashboard-card-icon">
+                                    <i class="fa-solid fa-hourglass-half"></i>
+                                </div>
+                                <div class="dashboard-card-value">
+                                    <?php
+                                        $pending_mod_query = "SELECT COUNT(*) as cnt FROM attendance_modification WHERE status = 'pending'";
+                                        $pending_mod_result = mysqli_query($conn, $pending_mod_query);
+                                        $pending_mod_count = 0;
+                                        if ($pending_mod_result && $row = mysqli_fetch_assoc($pending_mod_result)) {
+                                            $pending_mod_count = (int)$row['cnt'];
+                                        }
+                                        echo $pending_mod_count;
+                                    ?>
+                                </div>
+                                <div class="dashboard-card-label">Pending Mod. Request</div>
                             </div>
                         </div>
                     </div>
-                    <!-- Resignation Card -->
-                    <div style="flex:1; max-width: 330px; min-width: 270px; display: flex; justify-content: center;">
-                        <div style="background: #B22222; border-radius: 18px; padding: 28px 0 22px 0; width: 100%; height: 170px; display: flex; align-items: center; gap: 20px; box-shadow: 0 2px 12px rgba(0,0,0,0.07); justify-content: center;">
-                            <span style="font-size: 3rem; color: #fff; margin-right: 8px;">
-                                <i class="fa-solid fa-user-slash"></i>
-                            </span>
-                            <div>
-                                <div style="font-size: 2.2rem; font-weight: bold; color: #fff; line-height: 1;"><?= $resignation_count ?></div>
-                                <div style="font-size: 1rem; color: #fff; font-weight: 700; margin-top: 2px;">Resignation<br>this Month</div>
+                    <div class="row dashboard-card-row">
+                        <!-- Leave Requests -->
+                        <div class="col-md-2 dashboard-card-col">
+                            <div class="dashboard-card" style="background: #ffeaea;">
+                                <div class="dashboard-card-icon">
+                                    <i class="fa-solid fa-calendar-days"></i>
+                                </div>
+                                <div class="dashboard-card-value">
+                                    <?php
+                                        $leave_req_query = "SELECT COUNT(*) as cnt FROM leave_application WHERE status = 'pending'";
+                                        $leave_req_result = mysqli_query($conn, $leave_req_query);
+                                        $leave_req_count = 0;
+                                        if ($leave_req_result && $row = mysqli_fetch_assoc($leave_req_result)) {
+                                            $leave_req_count = (int)$row['cnt'];
+                                        }
+                                        echo $leave_req_count;
+                                    ?>
+                                </div>
+                                <div class="dashboard-card-label">Leave Requests</div>
+                            </div>
+                        </div>
+                        <!-- Approved Leave this Month -->
+                        <div class="col-md-2 dashboard-card-col">
+                            <div class="dashboard-card" style="background: #fff2d6;">
+                                <div class="dashboard-card-icon">
+                                    <i class="fa-solid fa-file-circle-check"></i>
+                                </div>
+                                <div class="dashboard-card-value">
+                                    <?php
+                                        $approved_leave_query = "SELECT COUNT(*) as cnt FROM leave_request WHERE status = 'approved' AND MONTH(requested_at) = MONTH(CURDATE()) AND YEAR(requested_at) = YEAR(CURDATE())";
+                                        $approved_leave_result = mysqli_query($conn, $approved_leave_query);
+                                        $approved_leave_count = 0;
+                                        if ($approved_leave_result && $row = mysqli_fetch_assoc($approved_leave_result)) {
+                                            $approved_leave_count = (int)$row['cnt'];
+                                        }
+                                        echo $approved_leave_count;
+                                    ?>
+                                </div>
+                                <div class="dashboard-card-label">Approved Leave<br>this Month</div>
+                            </div>
+                        </div>
+                        <!-- Resignation Requests -->
+                        <div class="col-md-2 dashboard-card-col">
+                            <div class="dashboard-card" style="background: #f3a6a6;">
+                                <div class="dashboard-card-icon">
+                                    <i class="fa-solid fa-folder"></i>
+                                </div>
+                                <div class="dashboard-card-value">
+                                    <?php
+                                        $resignation_req_query = "SELECT COUNT(*) as cnt FROM resignation WHERE status = 'pending'";
+                                        $resignation_req_result = mysqli_query($conn, $resignation_req_query);
+                                        $resignation_req_count = 0;
+                                        if ($resignation_req_result && $row = mysqli_fetch_assoc($resignation_req_result)) {
+                                            $resignation_req_count = (int)$row['cnt'];
+                                        }
+                                        echo $resignation_req_count;
+                                    ?>
+                                </div>
+                                <div class="dashboard-card-label">Resignation Requests</div>
                             </div>
                         </div>
                     </div>
                 </div>
             </div>
-            <style>
-                .dashboard-card-row {
-                    justify-content: center;
-                }
-                .dashboard-card-col {
-                    flex: 0 0 220px;
-                    max-width: 220px;
-                    min-width: 220px;
-                    margin-bottom: 24px;
-                    display: flex;
-                    align-items: stretch;
-                }
-                .dashboard-card {
-                    background: #fff;
-                    border-radius: 16px;
-                    padding: 24px 0 18px 0;
-                    text-align: center;
-                    box-shadow: 0 2px 8px rgba(0,0,0,0.07);
-                    width: 100%;
-                    height: 170px;
-                    display: flex;
-                    flex-direction: column;
-                    align-items: center;
-                    justify-content: center;
-                }
-                .dashboard-card .dashboard-card-icon {
-                    font-size: 2.5rem;
-                    color: #b30000;
-                    margin-bottom: 6px;
-                }
-                .dashboard-card .dashboard-card-value {
-                    font-size: 2.2rem;
-                    font-weight: bold;
-                    color: #b30000;
-                }
-                .dashboard-card .dashboard-card-label {
-                    font-size: 1.1rem;
-                    color: #b30000;
-                    font-weight: 600;
-                    margin-top: 2px;
-                }
-            </style>
-            <div class="container mt-4">
-                <div class="row dashboard-card-row">
-                    <!-- Present Today -->
-                    <div class="col-md-2 dashboard-card-col">
-                        <div class="dashboard-card" style="background: #f8cccc;">
-                            <div class="dashboard-card-icon">
-                                <i class="fa-solid fa-user"></i>
-                            </div>
-                            <div class="dashboard-card-value"><?= (int)($attendance_summary['present'] ?? 0) ?></div>
-                            <div class="dashboard-card-label">Present Today</div>
-                        </div>
-                    </div>
-                    <!-- Absent Today -->
-                    <div class="col-md-2 dashboard-card-col">
-                        <div class="dashboard-card" style="background: #f3a6a6;">
-                            <div class="dashboard-card-icon">
-                                <i class="fa-solid fa-user-slash"></i>
-                            </div>
-                            <div class="dashboard-card-value"><?= (int)($attendance_summary['absent'] ?? 0) ?></div>
-                            <div class="dashboard-card-label">Absent Today</div>
-                        </div>
-                    </div>
-                    <!-- Late Today -->
-                    <div class="col-md-2 dashboard-card-col">
-                        <div class="dashboard-card" style="background: #ffe5e5;">
-                            <div class="dashboard-card-icon">
-                                <i class="fa-solid fa-clock"></i>
-                            </div>
-                            <div class="dashboard-card-value"><?= (int)($attendance_summary['late'] ?? 0) ?></div>
-                            <div class="dashboard-card-label">Late Today</div>
-                        </div>
-                    </div>
-                    <!-- Pending Mod. Request -->
-                    <div class="col-md-2 dashboard-card-col">
-                        <div class="dashboard-card" style="background: #ffeaea;">
-                            <div class="dashboard-card-icon">
-                                <i class="fa-solid fa-hourglass-half"></i>
-                            </div>
-                            <div class="dashboard-card-value">
-                                <?php
-                                    $pending_mod_query = "SELECT COUNT(*) as cnt FROM attendance_modification WHERE status = 'pending'";
-                                    $pending_mod_result = mysqli_query($conn, $pending_mod_query);
-                                    $pending_mod_count = 0;
-                                    if ($pending_mod_result && $row = mysqli_fetch_assoc($pending_mod_result)) {
-                                        $pending_mod_count = (int)$row['cnt'];
-                                    }
-                                    echo $pending_mod_count;
-                                ?>
-                            </div>
-                            <div class="dashboard-card-label">Pending Mod. Request</div>
-                        </div>
-                    </div>
-                </div>
-                <div class="row dashboard-card-row">
-                    <!-- Leave Requests -->
-                    <div class="col-md-2 dashboard-card-col">
-                        <div class="dashboard-card" style="background: #ffeaea;">
-                            <div class="dashboard-card-icon">
-                                <i class="fa-solid fa-calendar-days"></i>
-                            </div>
-                            <div class="dashboard-card-value">
-                                <?php
-                                    $leave_req_query = "SELECT COUNT(*) as cnt FROM leave_application WHERE status = 'pending'";
-                                    $leave_req_result = mysqli_query($conn, $leave_req_query);
-                                    $leave_req_count = 0;
-                                    if ($leave_req_result && $row = mysqli_fetch_assoc($leave_req_result)) {
-                                        $leave_req_count = (int)$row['cnt'];
-                                    }
-                                    echo $leave_req_count;
-                                ?>
-                            </div>
-                            <div class="dashboard-card-label">Leave Requests</div>
-                        </div>
-                    </div>
-                    <!-- Approved Leave this Month -->
-                    <div class="col-md-2 dashboard-card-col">
-                        <div class="dashboard-card" style="background: #fff2d6;">
-                            <div class="dashboard-card-icon">
-                                <i class="fa-solid fa-file-circle-check"></i>
-                            </div>
-                            <div class="dashboard-card-value">
-                                <?php
-                                    $approved_leave_query = "SELECT COUNT(*) as cnt FROM leave_request WHERE status = 'approved' AND MONTH(requested_at) = MONTH(CURDATE()) AND YEAR(requested_at) = YEAR(CURDATE())";
-                                    $approved_leave_result = mysqli_query($conn, $approved_leave_query);
-                                    $approved_leave_count = 0;
-                                    if ($approved_leave_result && $row = mysqli_fetch_assoc($approved_leave_result)) {
-                                        $approved_leave_count = (int)$row['cnt'];
-                                    }
-                                    echo $approved_leave_count;
-                                ?>
-                            </div>
-                            <div class="dashboard-card-label">Approved Leave<br>this Month</div>
-                        </div>
-                    </div>
-                    <!-- Resignation Requests -->
-                    <div class="col-md-2 dashboard-card-col">
-                        <div class="dashboard-card" style="background: #f3a6a6;">
-                            <div class="dashboard-card-icon">
-                                <i class="fa-solid fa-folder"></i>
-                            </div>
-                            <div class="dashboard-card-value">
-                                <?php
-                                    $resignation_req_query = "SELECT COUNT(*) as cnt FROM resignation WHERE status = 'pending'";
-                                    $resignation_req_result = mysqli_query($conn, $resignation_req_query);
-                                    $resignation_req_count = 0;
-                                    if ($resignation_req_result && $row = mysqli_fetch_assoc($resignation_req_result)) {
-                                        $resignation_req_count = (int)$row['cnt'];
-                                    }
-                                    echo $resignation_req_count;
-                                ?>
-                            </div>
-                            <div class="dashboard-card-label">Resignation Requests</div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
+        <?php endif; ?>
     <?php endif; ?>
 
     <?php if ($show === 'attendance'): ?>
