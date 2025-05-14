@@ -887,6 +887,12 @@ if (isset($_POST['change_password'])) {
     header("Location: " . $_SERVER['PHP_SELF'] . "?show=profile");
     exit();
 }
+if (isset($_POST['logout'])) {
+    session_unset();
+    session_destroy();
+    header("Location: ../index.php");
+    exit();
+}
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -1000,6 +1006,12 @@ if (isset($_POST['change_password'])) {
                     <i class="bi bi-person"></i>
                     Profile
                 </a>
+                <form method="post" style="display:inline;">
+    <button type="submit" name="logout" class="custom-nav-link" id="logout-btn" style="background:none; border:none; padding:0;">
+        <i class="bi bi-box-arrow-right"></i>
+        Logout
+    </button>
+</form>
             </div>
         </div>
     </nav>
@@ -1921,6 +1933,8 @@ if (isset($_POST['change_password'])) {
         const pages = document.querySelectorAll('.page-content');
 
         navLinks.forEach(link => {
+            // Skip logout button
+            if (link.id === 'logout-btn') return;
             link.addEventListener('click', function(e) {
                 e.preventDefault();
                 
