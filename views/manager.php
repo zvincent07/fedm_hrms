@@ -954,21 +954,36 @@ document.addEventListener('DOMContentLoaded', function() {
     const attendanceRequestsPage = document.getElementById('attendanceRequestsPage');
     const backToAttendanceBtn = document.getElementById('backToAttendanceBtn');
 
+    // Add this function to hide all main content sections
+    function hideAllMainSections() {
+        document.getElementById('dashboardContent').style.display = 'none';
+        document.getElementById('employeeListContainer').style.display = 'none';
+        document.getElementById('attendanceListContainer').style.display = 'none';
+        document.getElementById('attendanceRequestsPage').style.display = 'none';
+        document.getElementById('leaveListContainer').style.display = 'none';
+        document.getElementById('resignationListContainer').style.display = 'none';
+        document.getElementById('notificationListContainer').style.display = 'none';
+    }
+
+    // Update all nav click handlers to use this function
     navLinks.forEach(link => {
         link.addEventListener('click', function(e) {
             e.preventDefault();
             navLinks.forEach(l => l.classList.remove('active'));
             this.classList.add('active');
-            if (this.textContent.trim().includes('Employee')) {
-                dashboardContent.style.display = 'none';
-                employeeList.style.display = 'block';
-            } else if (this.textContent.trim().includes('Dashboard')) {
-                dashboardContent.style.display = 'block';
-                employeeList.style.display = 'none';
+            hideAllMainSections();
+            if (this.textContent.trim().includes('Dashboard')) {
+                document.getElementById('dashboardContent').style.display = 'block';
+            } else if (this.textContent.trim().includes('Employee')) {
+                document.getElementById('employeeListContainer').style.display = 'block';
             } else if (this.textContent.trim().includes('Attendance')) {
-                dashboardContent.style.display = 'none';
-                employeeList.style.display = 'none';
-                attendanceList.style.display = 'block';
+                document.getElementById('attendanceListContainer').style.display = 'block';
+            } else if (this.textContent.trim().includes('Leave')) {
+                document.getElementById('leaveListContainer').style.display = 'block';
+            } else if (this.textContent.trim().includes('Resignation')) {
+                document.getElementById('resignationListContainer').style.display = 'block';
+            } else if (this.textContent.trim().includes('Notification')) {
+                document.getElementById('notificationListContainer').style.display = 'block';
             }
         });
     });
@@ -1018,13 +1033,13 @@ document.addEventListener('DOMContentLoaded', function() {
     if (attendanceRequestsBtn && attendanceRequestsPage && attendanceList) {
         attendanceRequestsBtn.addEventListener('click', function(e) {
             e.preventDefault();
-            attendanceList.style.display = 'none';
+            hideAllMainSections();
             attendanceRequestsPage.style.display = 'block';
         });
     }
     if (backToAttendanceBtn && attendanceRequestsPage && attendanceList) {
         backToAttendanceBtn.addEventListener('click', function() {
-            attendanceRequestsPage.style.display = 'none';
+            hideAllMainSections();
             attendanceList.style.display = 'block';
         });
     }
@@ -1051,9 +1066,7 @@ document.addEventListener('DOMContentLoaded', function() {
         e.preventDefault();
         navLinks.forEach(l => l.classList.remove('active'));
         this.classList.add('active');
-        dashboardContent.style.display = 'none';
-        employeeList.style.display = 'none';
-        attendanceList.style.display = 'none';
+        hideAllMainSections();
         leaveList.style.display = 'block';
     });
 
@@ -1064,10 +1077,7 @@ document.addEventListener('DOMContentLoaded', function() {
         e.preventDefault();
         navLinks.forEach(l => l.classList.remove('active'));
         this.classList.add('active');
-        dashboardContent.style.display = 'none';
-        employeeList.style.display = 'none';
-        attendanceList.style.display = 'none';
-        leaveList.style.display = 'none';
+        hideAllMainSections();
         resignationList.style.display = 'block';
     });
 
@@ -1077,11 +1087,7 @@ document.addEventListener('DOMContentLoaded', function() {
         e.preventDefault();
         navLinks.forEach(l => l.classList.remove('active'));
         this.classList.add('active');
-        dashboardContent.style.display = 'none';
-        employeeList.style.display = 'none';
-        attendanceList.style.display = 'none';
-        leaveList.style.display = 'none';
-        resignationList.style.display = 'none';
+        hideAllMainSections();
         notificationList.style.display = 'block';
     });
 
@@ -1117,25 +1123,55 @@ document.addEventListener('DOMContentLoaded', function() {
         })
         .catch(() => alert('Failed to save rating.'));
     });
+
+    // Handle resignation status updates
+    document.querySelectorAll('form[method="POST"]').forEach(form => {
+        form.addEventListener('submit', function(e) {
+            e.preventDefault();
+            const formData = new FormData(this);
+            
+            fetch(window.location.href, {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    // Show success message
+                    alert('Status updated successfully');
+                    // Reload the page only after successful update
+                    window.location.reload();
+                } else {
+                    alert('Failed to update status');
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('An error occurred while updating status');
+            });
+        });
+    });
 });
 </script>
 <?php
 // Handle resignation status update POST
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_resignation_status'])) {
-  $resignation_id = intval($_POST['resignation_id']);
-  $new_status = mysqli_real_escape_string($conn, $_POST['new_status']);
-  mysqli_query($conn, "UPDATE resignation SET status = '$new_status' WHERE resignation_id = $resignation_id");
-  echo "<script>location.reload();</script>";
-  exit();
+    header('Content-Type: application/json');
+    $resignation_id = intval($_POST['resignation_id']);
+    $new_status = mysqli_real_escape_string($conn, $_POST['new_status']);
+    $result = mysqli_query($conn, "UPDATE resignation SET status = '$new_status' WHERE resignation_id = $resignation_id");
+    echo json_encode(['success' => $result]);
+    exit();
 }
 
 // Handle attendance modification status update POST
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_mod_status'])) {
-  $mod_id = intval($_POST['mod_id']);
-  $new_status = mysqli_real_escape_string($conn, $_POST['new_mod_status']);
-  mysqli_query($conn, "UPDATE attendance_modification SET status = '$new_status' WHERE modification_id = $mod_id");
-  echo "<script>location.reload();</script>";
-  exit();
+    header('Content-Type: application/json');
+    $mod_id = intval($_POST['mod_id']);
+    $new_status = mysqli_real_escape_string($conn, $_POST['new_mod_status']);
+    $result = mysqli_query($conn, "UPDATE attendance_modification SET status = '$new_status' WHERE modification_id = $mod_id");
+    echo json_encode(['success' => $result]);
+    exit();
 }
 ?>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
