@@ -1782,6 +1782,13 @@ if (isset($_POST['logout'])) {
                         <h2 class="fw-bold mb-0" id="profileFullName"><?= htmlspecialchars($profile['full_name'] ?? '') ?></h2>
                         <div id="profileDepartment"><?= htmlspecialchars($profile['department'] ?? 'N/A') ?></div>
                         <div id="profileJobTitle"><?= htmlspecialchars($profile['job_title'] ?? 'N/A') ?></div>
+                        <div class="mt-1">
+                            <i class="bi bi-star-fill text-warning"></i>
+                            <i class="bi bi-star-fill text-warning"></i>
+                            <i class="bi bi-star-fill text-warning"></i>
+                            <i class="bi bi-star-fill text-warning"></i>
+                            <i class="bi bi-star text-warning"></i>
+                        </div>
                         <!-- Removed redundant Change password link here -->
                     </div>
                     <button class="btn btn-outline-dark ms-auto" id="editProfileBtn" title="Edit Profile"><i class="bi bi-pencil-square"></i></button>
