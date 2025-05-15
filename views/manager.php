@@ -1,11 +1,38 @@
 <?php
+// --- BRUTE FORCE JSON ERROR HANDLER FOR AJAX ---
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    set_exception_handler(function($e) {
+        header('Content-Type: application/json');
+        echo json_encode(['success' => false, 'error' => 'Fatal: ' . $e->getMessage()]);
+        exit();
+    });
+    set_error_handler(function($errno, $errstr, $errfile, $errline) {
+        header('Content-Type: application/json');
+        echo json_encode(['success' => false, 'error' => "PHP Error: $errstr in $errfile on line $errline"]);
+        exit();
+    });
+    register_shutdown_function(function() {
+        $error = error_get_last();
+        if ($error && in_array($error['type'], [E_ERROR, E_PARSE, E_CORE_ERROR, E_COMPILE_ERROR])) {
+            header('Content-Type: application/json');
+            echo json_encode(['success' => false, 'error' => 'Shutdown: ' . $error['message']]);
+            exit();
+        }
+    });
+}
 session_start();
 require_once('../config/db.php');
 
 // Only allow access for Manager role
 if (!isset($_SESSION['user_id']) || !isset($_SESSION['role']) || strtolower($_SESSION['role']) !== 'manager') {
-    header('Location: /fedm_hrms/views/manager.php');
-    exit();
+    if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+        header('Content-Type: application/json');
+        echo json_encode(['success' => false, 'error' => 'Session expired or unauthorized. Please log in again.']);
+        exit();
+    } else {
+        header('Location: /fedm_hrms/views/manager.php');
+        exit();
+    }
 }
 
 // Fetch dynamic dashboard data
@@ -581,15 +608,15 @@ while ($row = mysqli_fetch_assoc($res)) {
                                 echo "<td>" . htmlspecialchars($row['leave_type']) . "</td>";
                                 echo "<td>" . ucfirst($row['status']) . "</td>";
                                 echo '<td>';
-                                echo '<form method="post" style="display:inline;">';
-                                echo '<input type="hidden" name="leave_id" value="' . $row['leave_id'] . '">';
+                                echo '<form method="post" class="leave-status-form" style="display:inline;">';
+                                echo '<input type="hidden" name="id" value="' . htmlspecialchars($row['id']) . '">';
                                 echo '<select name="new_leave_status" class="form-control form-control-sm d-inline-block" style="width:auto;display:inline-block;">';
                                 foreach (["pending", "approved", "rejected"] as $statusOpt) {
                                     $selected = ($row['status'] === $statusOpt) ? 'selected' : '';
                                     echo '<option value="' . $statusOpt . '" ' . $selected . '>' . ucfirst($statusOpt) . '</option>';
                                 }
                                 echo '</select> ';
-                                echo '<button type="submit" name="update_leave_status" class="btn btn-primary btn-sm">Update</button>';
+                                echo '<button type="submit" name="update_leave_status" value="1" class="btn btn-primary btn-sm">Update</button>';
                                 echo '</form>';
                                 echo '</td>';
                                 echo '<td>';
@@ -728,7 +755,7 @@ while ($row = mysqli_fetch_assoc($res)) {
                                 echo "<td>" . ucfirst($row['status']) . "</td>";
                                 echo "<td>" . htmlspecialchars($row['submitted_at']) . "</td>";
                                 echo '<td>';
-                                echo '<form method="POST" style="display:inline;">';
+                                echo '<form method="post" class="resignation-status-form" style="display:inline;">';
                                 echo '<input type="hidden" name="resignation_id" value="' . htmlspecialchars($row['resignation_id']) . '">';
                                 echo '<select name="new_status" class="form-control form-control-sm d-inline-block" style="width:auto;display:inline-block;">';
                                 foreach (["pending", "approved", "rejected"] as $statusOpt) {
@@ -736,7 +763,7 @@ while ($row = mysqli_fetch_assoc($res)) {
                                     echo '<option value="' . $statusOpt . '" ' . $selected . '>' . ucfirst($statusOpt) . '</option>';
                                 }
                                 echo '</select> ';
-                                echo '<button type="submit" name="update_resignation_status" class="btn btn-primary btn-sm">Update</button>';
+                                echo '<button type="submit" name="update_resignation_status" value="1" class="btn btn-primary btn-sm">Update</button>';
                                 echo '</form>';
                                 echo '</td>';
                                 echo "</tr>";
@@ -943,6 +970,17 @@ while ($row = mysqli_fetch_assoc($res)) {
     </div>
   </div>
 </div>
+<!-- Toast Container -->
+<div aria-live="polite" aria-atomic="true" class="position-fixed top-0 end-0 p-3" style="z-index: 9999">
+  <div id="statusToast" class="toast align-items-center text-bg-primary border-0" role="alert" aria-live="assertive" aria-atomic="true">
+    <div class="d-flex">
+      <div class="toast-body" id="statusToastBody">
+        <!-- Message goes here -->
+      </div>
+      <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
+    </div>
+  </div>
+</div>
 <script>
 document.addEventListener('DOMContentLoaded', function() {
     const navLinks = document.querySelectorAll('.nav-mgr-link');
@@ -1124,56 +1162,65 @@ document.addEventListener('DOMContentLoaded', function() {
         .catch(() => alert('Failed to save rating.'));
     });
 
-    // Handle resignation status updates
-    document.querySelectorAll('form[method="POST"]').forEach(form => {
+    function showStatusToast(message, isError = false) {
+        var toastEl = document.getElementById('statusToast');
+        var toastBody = document.getElementById('statusToastBody');
+        toastBody.textContent = message;
+        toastEl.classList.remove('text-bg-primary', 'text-bg-danger', 'text-bg-success');
+        toastEl.classList.add(isError ? 'text-bg-danger' : 'text-bg-success');
+        var toast = new bootstrap.Toast(toastEl, { delay: 3000 });
+        toast.show();
+    }
+
+    // Handle leave status updates
+    document.querySelectorAll('.leave-status-form').forEach(form => {
         form.addEventListener('submit', function(e) {
             e.preventDefault();
             const formData = new FormData(this);
-            
             fetch(window.location.href, {
                 method: 'POST',
                 body: formData
             })
-            .then(response => response.json())
+            .then(r => r.json())
             .then(data => {
                 if (data.success) {
-                    // Show success message
-                    alert('Status updated successfully');
-                    // Reload the page only after successful update
-                    window.location.reload();
+                    showStatusToast('Leave status updated successfully');
+                    setTimeout(() => window.location.reload(), 1200);
                 } else {
-                    alert('Failed to update status');
+                    showStatusToast('LEAVE ERROR: ' + (data.error || 'Unknown error'), true);
                 }
             })
             .catch(error => {
-                console.error('Error:', error);
-                alert('An error occurred while updating status');
+                showStatusToast('AJAX error: ' + error, true);
+            });
+        });
+    });
+
+    // Handle resignation status updates
+    document.querySelectorAll('.resignation-status-form').forEach(form => {
+        form.addEventListener('submit', function(e) {
+            e.preventDefault();
+            const formData = new FormData(this);
+            fetch(window.location.href, {
+                method: 'POST',
+                body: formData
+            })
+            .then(r => r.json())
+            .then(data => {
+                if (data.success) {
+                    showStatusToast('Resignation status updated successfully');
+                    setTimeout(() => window.location.reload(), 1200);
+                } else {
+                    showStatusToast('RESIGNATION ERROR: ' + (data.error || 'Unknown error'), true);
+                }
+            })
+            .catch(error => {
+                showStatusToast('AJAX error: ' + error, true);
             });
         });
     });
 });
 </script>
-<?php
-// Handle resignation status update POST
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_resignation_status'])) {
-    header('Content-Type: application/json');
-    $resignation_id = intval($_POST['resignation_id']);
-    $new_status = mysqli_real_escape_string($conn, $_POST['new_status']);
-    $result = mysqli_query($conn, "UPDATE resignation SET status = '$new_status' WHERE resignation_id = $resignation_id");
-    echo json_encode(['success' => $result]);
-    exit();
-}
-
-// Handle attendance modification status update POST
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_mod_status'])) {
-    header('Content-Type: application/json');
-    $mod_id = intval($_POST['mod_id']);
-    $new_status = mysqli_real_escape_string($conn, $_POST['new_mod_status']);
-    $result = mysqli_query($conn, "UPDATE attendance_modification SET status = '$new_status' WHERE modification_id = $mod_id");
-    echo json_encode(['success' => $result]);
-    exit();
-}
-?>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 </body>
 </html> 
