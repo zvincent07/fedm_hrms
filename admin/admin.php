@@ -48,7 +48,7 @@ if (isset($_SESSION['user_id']) && empty($_SESSION['login_logged'])) {
 // --- END LOGIN ACTIVITY LOGGING PATCH ---
 
 $roles = [];
-$sql = "SELECT role_id, name FROM role ORDER BY name ASC";
+$sql = "SELECT role_id, name FROM role WHERE name != 'Admin' ORDER BY name ASC";
 $result = mysqli_query($conn, $sql);
 if ($result) {
     while ($row = mysqli_fetch_assoc($result)) {
