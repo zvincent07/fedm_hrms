@@ -189,14 +189,39 @@ while ($row = mysqli_fetch_assoc($res)) {
                     <div class="dashboard-card">
                         <h5 class="fw-bold mb-3">Top-Rated Employees</h5>
                         <ol>
-                        <?php foreach ($top_employees as $emp): ?>
-                            <li><?= htmlspecialchars($emp['full_name']) ?>
-                                <span style="margin-left:8px;">
-                                    <?php for ($i = 0; $i < 5; $i++): ?><span class="star">&#9733;</span><?php endfor; ?>
-                                    <?= number_format($emp['manager_rating'], 1) ?>
+                            <li>
+                                John Doe
+                                <span style="margin-left:8px; color: #ffb300;">
+                                    <span class="star">&#9733;</span>
+                                    <span class="star">&#9733;</span>
+                                    <span class="star">&#9733;</span>
+                                    <span class="star">&#9733;</span>
+                                    <span class="star">&#9733;</span>
+                                    5.0
                                 </span>
                             </li>
-                        <?php endforeach; ?>
+                            <li>
+                                Ryan Jeremy
+                                <span style="margin-left:8px; color: #ffb300;">
+                                    <span class="star">&#9733;</span>
+                                    <span class="star">&#9733;</span>
+                                    <span class="star">&#9733;</span>
+                                    <span class="star">&#9733;</span>
+                                    <span class="star">&#9733;</span>
+                                    5.0
+                                </span>
+                            </li>
+                            <li>
+                                Christine Mendoza
+                                <span style="margin-left:8px; color: #ffb300;">
+                                    <span class="star">&#9733;</span>
+                                    <span class="star">&#9733;</span>
+                                    <span class="star">&#9733;</span>
+                                    <span class="star">&#9733;</span>
+                                    <span class="star">&#9733;</span>
+                                    5.0
+                                </span>
+                            </li>
                         </ol>
                     </div>
                 </div>
@@ -204,9 +229,8 @@ while ($row = mysqli_fetch_assoc($res)) {
                     <div class="dashboard-card">
                         <h5 class="fw-bold mb-3">Quick Actions</h5>
                         <div class="quick-action">
-                            <a href="#" class="btn btn-outline-primary">Add Employee</a>
+                            <a href="#" class="btn btn-outline-primary">Approve Attendance</a>
                             <a href="#" class="btn btn-outline-success">Approve Leave</a>
-                            <a href="#" class="btn btn-outline-secondary">View Logs</a>
                         </div>
                     </div>
                 </div>
@@ -846,11 +870,22 @@ while ($row = mysqli_fetch_assoc($res)) {
           </div>
           <div class="ms-4 flex-grow-1">
             <div class="d-flex align-items-center">
-              <h2 class="fw-bold mb-0" id="modalFullName"></h2>
+              <h2 class="fw-bold mb-0" id="profileFullName"><?= htmlspecialchars($profile['full_name'] ?? '') ?></h2>
               <button type="button" class="btn btn-outline-secondary btn-sm ms-3" title="Edit"><i class="bi bi-pencil"></i></button>
             </div>
-            <div id="modalDepartment" class="text-muted" style="font-size:1.1rem;"></div>
-            <div id="modalJobTitle" class="fw-semibold" style="font-size:1.1rem;"></div>
+            <div id="profileDepartment"><?= htmlspecialchars($profile['department'] ?? 'N/A') ?></div>
+            <div id="profileJobTitle"><?= htmlspecialchars($profile['job_title'] ?? 'N/A') ?></div>
+            <div class="mt-1">
+                <span class="text-muted">employee1@gmail.com</span>
+                <span class="ms-2">
+                    <i class="bi bi-star-fill text-warning"></i>
+                    <i class="bi bi-star-fill text-warning"></i>
+                    <i class="bi bi-star-fill text-warning"></i>
+                    <i class="bi bi-star-fill text-warning"></i>
+                    <i class="bi bi-star text-warning"></i>
+                    <span class="ms-1">4.0</span>
+                </span>
+            </div>
           </div>
         </div>
         <hr>
@@ -882,9 +917,6 @@ while ($row = mysqli_fetch_assoc($res)) {
           <div class="col-md-6">
             <label class="form-label">Nationality</label>
             <div class="form-control bg-light" id="modalNationality" readonly></div>
-          </div>
-          <div class="col-md-6 d-flex align-items-end">
-            <a href="#" class="text-primary ms-3 mb-2" style="font-size:1rem; font-weight:500; white-space:nowrap;">Change password</a>
           </div>
         </div>
       </div>
