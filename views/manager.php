@@ -23,6 +23,36 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 session_start();
 require_once('../config/db.php');
 
+// Handle leave status updates
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_leave_status'])) {
+    $leave_id = intval($_POST['id']);
+    $new_status = mysqli_real_escape_string($conn, $_POST['new_leave_status']);
+    
+    $update_query = "UPDATE leave_application SET status = '$new_status' WHERE id = $leave_id";
+    if (mysqli_query($conn, $update_query)) {
+        $_SESSION['success_message'] = "Leave status updated successfully.";
+    } else {
+        $_SESSION['error_message'] = "Failed to update leave status.";
+    }
+    header("Location: " . $_SERVER['PHP_SELF']);
+    exit();
+}
+
+// Handle resignation status updates
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_resignation_status'])) {
+    $resignation_id = intval($_POST['resignation_id']);
+    $new_status = mysqli_real_escape_string($conn, $_POST['new_status']);
+    
+    $update_query = "UPDATE resignation SET status = '$new_status' WHERE resignation_id = $resignation_id";
+    if (mysqli_query($conn, $update_query)) {
+        $_SESSION['success_message'] = "Resignation status updated successfully.";
+    } else {
+        $_SESSION['error_message'] = "Failed to update resignation status.";
+    }
+    header("Location: " . $_SERVER['PHP_SELF']);
+    exit();
+}
+
 // Only allow access for Manager role
 if (!isset($_SESSION['user_id']) || !isset($_SESSION['role']) || strtolower($_SESSION['role']) !== 'manager') {
     if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -139,6 +169,21 @@ while ($row = mysqli_fetch_assoc($res)) {
     </style>
 </head>
 <body>
+<?php if (isset($_SESSION['success_message'])): ?>
+    <div class="alert alert-success alert-dismissible fade show" role="alert">
+        <?= htmlspecialchars($_SESSION['success_message']) ?>
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    </div>
+    <?php unset($_SESSION['success_message']); ?>
+<?php endif; ?>
+
+<?php if (isset($_SESSION['error_message'])): ?>
+    <div class="alert alert-danger alert-dismissible fade show" role="alert">
+        <?= htmlspecialchars($_SESSION['error_message']) ?>
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    </div>
+    <?php unset($_SESSION['error_message']); ?>
+<?php endif; ?>
 <div class="d-flex">
     <!-- Sidebar -->
     <div class="sidebar-mgr">
@@ -1207,48 +1252,16 @@ document.addEventListener('DOMContentLoaded', function() {
     // Handle leave status updates
     document.querySelectorAll('.leave-status-form').forEach(form => {
         form.addEventListener('submit', function(e) {
-            e.preventDefault();
-            const formData = new FormData(this);
-            fetch(window.location.href, {
-                method: 'POST',
-                body: formData
-            })
-            .then(r => r.json())
-            .then(data => {
-                if (data.success) {
-                    showStatusToast('Leave status updated successfully');
-                    setTimeout(() => window.location.reload(), 1200);
-                } else {
-                    showStatusToast('LEAVE ERROR: ' + (data.error || 'Unknown error'), true);
-                }
-            })
-            .catch(error => {
-                showStatusToast('AJAX error: ' + error, true);
-            });
+            // Let the form submit normally
+            return true;
         });
     });
 
     // Handle resignation status updates
     document.querySelectorAll('.resignation-status-form').forEach(form => {
         form.addEventListener('submit', function(e) {
-            e.preventDefault();
-            const formData = new FormData(this);
-            fetch(window.location.href, {
-                method: 'POST',
-                body: formData
-            })
-            .then(r => r.json())
-            .then(data => {
-                if (data.success) {
-                    showStatusToast('Resignation status updated successfully');
-                    setTimeout(() => window.location.reload(), 1200);
-                } else {
-                    showStatusToast('RESIGNATION ERROR: ' + (data.error || 'Unknown error'), true);
-                }
-            })
-            .catch(error => {
-                showStatusToast('AJAX error: ' + error, true);
-            });
+            // Let the form submit normally
+            return true;
         });
     });
 });
