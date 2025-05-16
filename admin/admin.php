@@ -528,6 +528,12 @@ $resignation_month_res = mysqli_query($conn, $resignation_month_sql);
 if ($resignation_month_res && $row = mysqli_fetch_assoc($resignation_month_res)) {
     $resignation_this_month_count = (int)$row['cnt'];
 }
+
+$top_employees = [];
+$res = mysqli_query($conn, "SELECT full_name, manager_rating FROM user_account WHERE manager_rating IS NOT NULL ORDER BY manager_rating DESC LIMIT 3");
+while ($row = mysqli_fetch_assoc($res)) {
+    $top_employees[] = $row;
+}
 ?>
 
 <?php include 'adminHeader.php'; ?>
@@ -558,6 +564,16 @@ if ($resignation_month_res && $row = mysqli_fetch_assoc($resignation_month_res))
             <a class="nav-sub-item<?= $is_hr ? ' hr-nav-btn' : '' ?>" href="?show=leave" style="color:<?= $is_hr ? '#a04a00' : '' ?>">Leave</a>
             <a class="nav-sub-item<?= $is_hr ? ' hr-nav-btn' : '' ?>" href="?show=resignation" style="color:<?= $is_hr ? '#a04a00' : '' ?>">Resignation</a>
         </div>
+        <?php if (!$is_hr): // Only show button if user is not HR (i.e., is Admin) ?>
+            <a class="nav-item" id="createAccountBtn" href="?show=createAccount">
+                <i class="fa-solid fa-user-plus"></i>
+                Create Account
+            </a>
+            <a class="nav-item" id="changePasswordBtn" href="?show=changePassword">
+                <i class="fa-solid fa-key"></i>
+                Change Password
+            </a>
+        <?php endif; ?>
         <a class="nav-item<?= $is_hr ? ' hr-nav-btn' : '' ?>" href="?show=notification">
             <i class="fa-solid fa-paper-plane" style="color:<?= $is_hr ? '#a04a00' : '' ?>"></i>
             <span style="color:<?= $is_hr ? '#a04a00' : '' ?>; font-weight: bold;">Send Notification</span>
@@ -566,16 +582,6 @@ if ($resignation_month_res && $row = mysqli_fetch_assoc($resignation_month_res))
             <i class="fa-regular fa-clock" style="color:<?= $is_hr ? '#a04a00' : '' ?>"></i>
             <span style="color:<?= $is_hr ? '#a04a00' : '' ?>; font-weight: bold;">Activity Logs</span>
         </a>
-        <?php if (!$is_hr): ?>
-        <a class="nav-item" id="createAccountBtn" href="?show=createAccount">
-            <i class="fa-solid fa-user-plus"></i>
-            Create Account
-        </a>
-        <a class="nav-item" id="changePasswordBtn" href="?show=changePassword">
-            <i class="fa-solid fa-key"></i>
-            Change Password
-        </a>
-        <?php endif; ?>
     </div>
     <div class="nav-bottom" style="flex-shrink: 0; margin-bottom: 18px;">
         <form method="POST" style="width:100%;">
@@ -674,14 +680,56 @@ if ($resignation_month_res && $row = mysqli_fetch_assoc($resignation_month_res))
                     </div>
                 </div>
                 <div class="hr-main-row">
+                <div class="col-md-4">
                     <div class="hr-card">
-                        <h4>Top-Rated Employees</h4>
-                        <ol style="padding-left: 18px;">
-                            <li style="margin-bottom: 8px;">John Doe <span style="margin-left: 8px;"><?php for ($i = 0; $i < 5; $i++): ?><span class="star">&#9733;</span><?php endfor; ?> 5.0</span></li>
-                            <li style="margin-bottom: 8px;">Ryan Jeremy <span style="margin-left: 8px;"><?php for ($i = 0; $i < 5; $i++): ?><span class="star">&#9733;</span><?php endfor; ?> 5.0</span></li>
-                            <li style="margin-bottom: 8px;">Christine Mendoza <span style="margin-left: 8px;"><?php for ($i = 0; $i < 5; $i++): ?><span class="star">&#9733;</span><?php endfor; ?> 5.0</span></li>
+                        <h5 class="fw-bold mb-3">Top-Rated Employees</h5>
+                        <ol>
+                            <?php
+                            // Fetch top 3 rated employees
+                            $top_rated_query = "SELECT ua.full_name, ua.manager_rating 
+                                              FROM user_account ua 
+                                              WHERE ua.manager_rating IS NOT NULL 
+                                              ORDER BY ua.manager_rating DESC 
+                                              LIMIT 3";
+                            $top_rated_result = mysqli_query($conn, $top_rated_query);
+                            
+                            if ($top_rated_result && mysqli_num_rows($top_rated_result) > 0) {
+                                while ($employee = mysqli_fetch_assoc($top_rated_result)) {
+                                    $rating = round($employee['manager_rating'], 1);
+                                    $full_stars = floor($rating);
+                                    $has_half_star = ($rating - $full_stars) >= 0.5;
+                                    
+                                    echo '<li>';
+                                    echo htmlspecialchars($employee['full_name']);
+                                    echo '<span style="margin-left:8px; color: #ffb300;">';
+                                    
+                                    // Display full stars
+                                    for ($i = 0; $i < $full_stars; $i++) {
+                                        echo '<span class="star">&#9733;</span>';
+                                    }
+                                    
+                                    // Display half star if needed
+                                    if ($has_half_star) {
+                                        echo '<span class="star">&#9734;</span>';
+                                    }
+                                    
+                                    // Display empty stars
+                                    $empty_stars = 5 - $full_stars - ($has_half_star ? 1 : 0);
+                                    for ($i = 0; $i < $empty_stars; $i++) {
+                                        echo '<span class="star">&#9734;</span>';
+                                    }
+                                    
+                                    echo ' ' . number_format($rating, 1);
+                                    echo '</span>';
+                                    echo '</li>';
+                                }
+                            } else {
+                                echo '<li class="text-muted">No rated employees yet</li>';
+                            }
+                            ?>
                         </ol>
                     </div>
+                </div>
                     <div class="hr-card">
                         <h4>Total Employee per Department</h4>
                         <div class="bubble-chart" style="display: flex; align-items: flex-end; gap: 32px; justify-content: center;">
@@ -1615,10 +1663,12 @@ if ($resignation_month_res && $row = mysqli_fetch_assoc($resignation_month_res))
         ?>
         <div class="notification-card">
             <div class="notification-card-header">
-                Notifications
-                <button type="button" class="compose-btn" id="composeNotifBtn">
-                    <i class="fas fa-edit"></i> Compose
-                </button>
+                <span style="color: <?= $is_hr ? '#f37b20' : '#b30000' ?>; font-weight: bold;">Notifications</span>
+                <?php if (!$is_hr): // Only show button if user is not HR (i.e., is Admin) ?>
+                    <button type="button" class="compose-btn" id="composeNotifBtn">
+                        <i class="fas fa-edit"></i> Compose
+                    </button>
+                <?php endif; ?>
             </div>
             <?php if (!empty($notif_error)): ?>
                 <div class="notif-success-message" style="background:#f8d7da;color:#721c24;border-color:#f5c6cb;margin-left:18px;margin-right:18px;">
