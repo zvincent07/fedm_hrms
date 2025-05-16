@@ -127,54 +127,80 @@
 session_start();
 include __DIR__ . '/../config/db.php';
 
+// Add reCAPTCHA secret key - Replace with your actual secret key
+define('RECAPTCHA_SECRET_KEY', '6LeSID0rAAAAADu-JpYJdfOHULeTs4nJW5nasFiR');
+
 if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     $email = mysqli_real_escape_string($conn, trim($_POST['email']));
     $password = trim($_POST['password']);
+    
+    // Verify reCAPTCHA
+    $recaptcha_response = $_POST['g-recaptcha-response'];
+    $verify_url = "https://www.google.com/recaptcha/api/siteverify";
+    $data = [
+        'secret' => RECAPTCHA_SECRET_KEY,
+        'response' => $recaptcha_response,
+        'remoteip' => $_SERVER['REMOTE_ADDR']
+    ];
 
-    $query = "SELECT user_account.user_id, user_account.password, user_account.role_id, role.name AS role_name 
-              FROM user_account 
-              JOIN role ON user_account.role_id = role.role_id 
-              WHERE email = '$email' LIMIT 1";
-    $result = mysqli_query($conn, $query);
+    $options = [
+        'http' => [
+            'header' => "Content-type: application/x-www-form-urlencoded\r\n",
+            'method' => 'POST',
+            'content' => http_build_query($data)
+        ]
+    ];
 
-    if ($result && mysqli_num_rows($result) > 0) {
-        $user = mysqli_fetch_assoc($result);
+    $context = stream_context_create($options);
+    $verify_response = file_get_contents($verify_url, false, $context);
+    $captcha_success = json_decode($verify_response);
 
-        if (password_verify($password, $user['password'])) {
-            $_SESSION['user_id'] = $user['user_id'];
-            $_SESSION['role'] = $user['role_name'];
+    if (!$captcha_success->success) {
+        $error = "Please complete the CAPTCHA verification.";
+    } else {
+        $query = "SELECT user_account.user_id, user_account.password, user_account.role_id, role.name AS role_name 
+                  FROM user_account 
+                  JOIN role ON user_account.role_id = role.role_id 
+                  WHERE email = '$email' LIMIT 1";
+        $result = mysqli_query($conn, $query);
 
-            $roleQuery = "SELECT role_id, name FROM role";
-            $roleResult = mysqli_query($conn, $roleQuery);
-            $roles = [];
-            while ($role = mysqli_fetch_assoc($roleResult)) {
-                // Normalize role names to lowercase for reliable comparison
-                $roles[strtolower($role['name'])] = $role['role_id'];
-            }
+        if ($result && mysqli_num_rows($result) > 0) {
+            $user = mysqli_fetch_assoc($result);
 
-            // Normalize user's role name for comparison
-            $userRoleName = strtolower($user['role_name']);
+            if (password_verify($password, $user['password'])) {
+                $_SESSION['user_id'] = $user['user_id'];
+                $_SESSION['role'] = $user['role_name'];
 
-            error_log("User Role ID: " . $user['role_id']);
-            error_log("Admin Role ID: " . (isset($roles['admin']) ? $roles['admin'] : 'N/A'));
-            error_log("User Role Name: " . $user['role_name']);
+                $roleQuery = "SELECT role_id, name FROM role";
+                $roleResult = mysqli_query($conn, $roleQuery);
+                $roles = [];
+                while ($role = mysqli_fetch_assoc($roleResult)) {
+                    $roles[strtolower($role['name'])] = $role['role_id'];
+                }
 
-            if ((int)$user['role_id'] === (isset($roles['admin']) ? (int)$roles['admin'] : -1)) {
-                header('Location: admin/admin.php');
-                exit();
-            } elseif ((int)$user['role_id'] === (isset($roles['employee']) ? (int)$roles['employee'] : -1)) {
-                header('Location: views/employee.php');
-                exit();
-            } elseif ((int)$user['role_id'] === (isset($roles['manager']) ? (int)$roles['manager'] : -1)) {
-                header('Location: views/manager.php');
-                exit();
-            } elseif ((int)$user['role_id'] === (isset($roles['hr']) ? (int)$roles['hr'] : -1)) {
-                header('Location: admin/admin.php');
-                exit();
+                $userRoleName = strtolower($user['role_name']);
+
+                error_log("User Role ID: " . $user['role_id']);
+                error_log("Admin Role ID: " . (isset($roles['admin']) ? $roles['admin'] : 'N/A'));
+                error_log("User Role Name: " . $user['role_name']);
+
+                if ((int)$user['role_id'] === (isset($roles['admin']) ? (int)$roles['admin'] : -1)) {
+                    header('Location: admin/admin.php');
+                    exit();
+                } elseif ((int)$user['role_id'] === (isset($roles['employee']) ? (int)$roles['employee'] : -1)) {
+                    header('Location: views/employee.php');
+                    exit();
+                } elseif ((int)$user['role_id'] === (isset($roles['manager']) ? (int)$roles['manager'] : -1)) {
+                    header('Location: views/manager.php');
+                    exit();
+                } elseif ((int)$user['role_id'] === (isset($roles['hr']) ? (int)$roles['hr'] : -1)) {
+                    header('Location: admin/admin.php');
+                    exit();
+                }
             }
         }
+        $error = "Invalid credentials.";
     }
-    $error = "Invalid credentials.";
 }
 
 $present_today = mysqli_fetch_assoc(mysqli_query($conn, "SELECT COUNT(DISTINCT employee_id) as cnt FROM attendance WHERE date = CURDATE() AND status = 'present'"))['cnt'];
@@ -219,10 +245,13 @@ $present_today = mysqli_fetch_assoc(mysqli_query($conn, "SELECT COUNT(DISTINCT e
                         </button>
                     </div>
                 </div>
+                <!-- Add reCAPTCHA widget -->
+                <div class="mb-3">
+                    <div class="g-recaptcha" data-sitekey="6LeSID0rAAAAABwdfFdkHNJpCCfdmODRsvRdhBi5"></div>
+                </div>
                 <?php if (isset($error)): ?>
                     <div class="alert alert-danger"><?php echo htmlspecialchars($error, ENT_QUOTES, 'UTF-8'); ?></div>
                 <?php endif; ?>
-                <a href="#" class="forgot-link">Forgot Password?</a>
                 <button type="submit" class="btn btn-login">Login</button>
             </form>
         </div>
@@ -327,3 +356,6 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 });
 </script>
+
+<!-- Add reCAPTCHA script -->
+<script src="https://www.google.com/recaptcha/api.js" async defer></script>
