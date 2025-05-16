@@ -23,6 +23,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 session_start();
 require_once('../config/db.php');
 
+// Handle logout
+if (isset($_GET['logout'])) {
+    session_destroy();
+    header("Location: ../index.php");
+    exit();
+}
+
 // Handle leave status updates
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_leave_status'])) {
     $leave_id = intval($_POST['id']);
@@ -34,7 +41,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_leave_status']
     } else {
         $_SESSION['error_message'] = "Failed to update leave status.";
     }
-    header("Location: " . $_SERVER['PHP_SELF']);
+    
+    // Always redirect back to leave page
+    $redirect_url = $_SERVER['PHP_SELF'] . '?page=leave';
+    if (isset($_GET['leave_search'])) $redirect_url .= '&leave_search=' . urlencode($_GET['leave_search']);
+    if (isset($_GET['leave_date'])) $redirect_url .= '&leave_date=' . urlencode($_GET['leave_date']);
+    if (isset($_GET['leave_status'])) $redirect_url .= '&leave_status=' . urlencode($_GET['leave_status']);
+    if (isset($_GET['leave_department'])) $redirect_url .= '&leave_department=' . urlencode($_GET['leave_department']);
+    
+    header("Location: " . $redirect_url);
     exit();
 }
 
@@ -49,7 +64,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_resignation_st
     } else {
         $_SESSION['error_message'] = "Failed to update resignation status.";
     }
-    header("Location: " . $_SERVER['PHP_SELF']);
+    
+    // Always redirect back to resignation page
+    $redirect_url = $_SERVER['PHP_SELF'] . '?page=resignation';
+    if (isset($_GET['resignation_search'])) $redirect_url .= '&resignation_search=' . urlencode($_GET['resignation_search']);
+    if (isset($_GET['resignation_status'])) $redirect_url .= '&resignation_status=' . urlencode($_GET['resignation_status']);
+    if (isset($_GET['resignation_department'])) $redirect_url .= '&resignation_department=' . urlencode($_GET['resignation_department']);
+    
+    header("Location: " . $redirect_url);
     exit();
 }
 
@@ -102,6 +124,8 @@ while ($row = mysqli_fetch_assoc($res)) {
             box-shadow: 0 2px 16px #0001;
             padding: 0;
             width: 260px;
+            display: flex;
+            flex-direction: column;
         }
         .sidebar-mgr .logo {
             display: flex;
@@ -116,6 +140,7 @@ while ($row = mysqli_fetch_assoc($res)) {
             margin-bottom: 12px;
         }
         .sidebar-mgr .nav-mgr {
+            flex: 1;
             display: flex;
             flex-direction: column;
             gap: 8px;
@@ -166,6 +191,26 @@ while ($row = mysqli_fetch_assoc($res)) {
         .star { color: #f6a940; font-size: 1.1rem; }
         .quick-action { display: flex; flex-direction: column; gap: 1rem; }
         .quick-action button, .quick-action a { width: 100%; }
+        .logout-container {
+            padding: 1rem;
+            border-top: 1px solid rgba(41, 86, 168, 0.2);
+            margin-top: auto;
+        }
+        .logout-link {
+            color: #dc3545 !important;
+            font-weight: 600;
+            text-decoration: none;
+            display: flex;
+            align-items: center;
+            gap: 0.9rem;
+            padding: 0.7rem 2rem;
+            border-radius: 16px;
+            transition: background 0.2s;
+        }
+        .logout-link:hover {
+            background: #ffe5e5 !important;
+            color: #dc3545 !important;
+        }
     </style>
 </head>
 <body>
@@ -197,8 +242,12 @@ while ($row = mysqli_fetch_assoc($res)) {
             <a class="nav-mgr-link" href="#"><i class="bi bi-calendar-heart"></i>Leave</a>
             <a class="nav-mgr-link" href="#"><i class="bi bi-box-arrow-right"></i>Resignation</a>
             <a class="nav-mgr-link" href="#"><i class="bi bi-bell"></i>Notification</a>
-            <a class="nav-mgr-link" href="#"><i class="bi bi-clock-history"></i>Activity Logs</a>
         </nav>
+        <div class="logout-container">
+            <a class="logout-link" href="?logout=1">
+                <i class="bi bi-box-arrow-right"></i>Logout
+            </a>
+        </div>
     </div>
     <!-- Main Content -->
     <div class="flex-grow-1 p-4">
@@ -1183,6 +1232,8 @@ document.addEventListener('DOMContentLoaded', function() {
         this.classList.add('active');
         hideAllMainSections();
         leaveList.style.display = 'block';
+        // Update URL without reloading
+        window.history.pushState({}, '', '?page=leave');
     });
 
     // Add nav logic for Resignation
@@ -1194,6 +1245,8 @@ document.addEventListener('DOMContentLoaded', function() {
         this.classList.add('active');
         hideAllMainSections();
         resignationList.style.display = 'block';
+        // Update URL without reloading
+        window.history.pushState({}, '', '?page=resignation');
     });
 
     const notificationNav = Array.from(document.querySelectorAll('.nav-mgr-link')).find(l => l.textContent.trim().includes('Notification'));
@@ -1252,7 +1305,12 @@ document.addEventListener('DOMContentLoaded', function() {
     // Handle leave status updates
     document.querySelectorAll('.leave-status-form').forEach(form => {
         form.addEventListener('submit', function(e) {
-            // Let the form submit normally
+            // Add the current page parameter to the form
+            const pageInput = document.createElement('input');
+            pageInput.type = 'hidden';
+            pageInput.name = 'current_page';
+            pageInput.value = 'leave';
+            this.appendChild(pageInput);
             return true;
         });
     });
@@ -1260,10 +1318,47 @@ document.addEventListener('DOMContentLoaded', function() {
     // Handle resignation status updates
     document.querySelectorAll('.resignation-status-form').forEach(form => {
         form.addEventListener('submit', function(e) {
-            // Let the form submit normally
+            // Add the current page parameter to the form
+            const pageInput = document.createElement('input');
+            pageInput.type = 'hidden';
+            pageInput.name = 'current_page';
+            pageInput.value = 'resignation';
+            this.appendChild(pageInput);
             return true;
         });
     });
+
+    // Add this function to show the correct section based on URL parameters
+    function showCorrectSection() {
+        const urlParams = new URLSearchParams(window.location.search);
+        const page = urlParams.get('page');
+        
+        // Hide all sections first
+        hideAllMainSections();
+        
+        // Remove active class from all nav links
+        navLinks.forEach(l => l.classList.remove('active'));
+        
+        if (page === 'leave') {
+            document.getElementById('leaveListContainer').style.display = 'block';
+            // Find and activate the Leave nav link
+            const leaveNav = Array.from(document.querySelectorAll('.nav-mgr-link')).find(l => l.textContent.trim().includes('Leave'));
+            if (leaveNav) leaveNav.classList.add('active');
+        } else if (page === 'resignation') {
+            document.getElementById('resignationListContainer').style.display = 'block';
+            // Find and activate the Resignation nav link
+            const resignationNav = Array.from(document.querySelectorAll('.nav-mgr-link')).find(l => l.textContent.trim().includes('Resignation'));
+            if (resignationNav) resignationNav.classList.add('active');
+        } else {
+            document.getElementById('dashboardContent').style.display = 'block';
+            // Find and activate the Dashboard nav link
+            const dashboardNav = Array.from(document.querySelectorAll('.nav-mgr-link')).find(l => l.textContent.trim().includes('Dashboard'));
+            if (dashboardNav) dashboardNav.classList.add('active');
+        }
+    }
+
+    // Call this function when the page loads
+    showCorrectSection();
 });
 </script>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
