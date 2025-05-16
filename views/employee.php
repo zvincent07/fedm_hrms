@@ -1783,11 +1783,24 @@ if (isset($_POST['logout'])) {
                         <div id="profileDepartment"><?= htmlspecialchars($profile['department'] ?? 'N/A') ?></div>
                         <div id="profileJobTitle"><?= htmlspecialchars($profile['job_title'] ?? 'N/A') ?></div>
                         <div class="mt-1">
-                            <i class="bi bi-star-fill text-warning"></i>
-                            <i class="bi bi-star-fill text-warning"></i>
-                            <i class="bi bi-star-fill text-warning"></i>
-                            <i class="bi bi-star-fill text-warning"></i>
-                            <i class="bi bi-star text-warning"></i>
+                            <?php
+                            // Get the manager rating from the profile data
+                            $rating = isset($profile['manager_rating']) ? (int)$profile['manager_rating'] : 0;
+                            
+                            // Display filled stars based on rating
+                            for ($i = 1; $i <= 5; $i++) {
+                                if ($i <= $rating) {
+                                    echo '<i class="bi bi-star-fill text-warning"></i>';
+                                } else {
+                                    echo '<i class="bi bi-star text-warning"></i>';
+                                }
+                            }
+                            
+                            // Display the numerical rating if available
+                            if ($rating > 0) {
+                                echo '<span class="ms-2 text-muted">(' . $rating . '/5)</span>';
+                            }
+                            ?>
                         </div>
                         <!-- Removed redundant Change password link here -->
                     </div>
