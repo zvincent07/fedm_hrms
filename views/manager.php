@@ -1,4 +1,7 @@
 <?php
+session_start();
+require_once('../config/db.php');
+
 // --- BRUTE FORCE JSON ERROR HANDLER FOR AJAX ---
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     set_exception_handler(function($e) {
@@ -20,8 +23,84 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
     });
 }
-session_start();
-require_once('../config/db.php');
+
+
+// Handle employee rating submission
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['rate_employee'])) {
+    // Validate required fields
+    $required_fields = ['user_id', 'punctuality', 'work_quality', 'productivity', 'teamwork', 'professionalism'];
+    foreach ($required_fields as $field) {
+        if (!isset($_POST[$field]) || empty($_POST[$field])) {
+            $_SESSION['error_message'] = "Missing required field: $field";
+            header("Location: " . $_SERVER['PHP_SELF']);
+            exit();
+        }
+    }
+
+    // Sanitize and validate input
+    $employee_id = intval($_POST['user_id']);
+    $rated_by = $_SESSION['user_id'];
+    $punctuality = intval($_POST['punctuality']);
+    $work_quality = intval($_POST['work_quality']);
+    $productivity = intval($_POST['productivity']);
+    $teamwork = intval($_POST['teamwork']);
+    $professionalism = intval($_POST['professionalism']);
+
+    // Validate rating values (should be between 1 and 5)
+    $ratings = [$punctuality, $work_quality, $productivity, $teamwork, $professionalism];
+    foreach ($ratings as $rating) {
+        if ($rating < 1 || $rating > 5) {
+            $_SESSION['error_message'] = 'Ratings must be between 1 and 5';
+            header("Location: " . $_SERVER['PHP_SELF']);
+            exit();
+        }
+    }
+
+    // Calculate average rating
+    $average_rating = array_sum($ratings) / count($ratings);
+
+    // Start transaction
+    mysqli_begin_transaction($conn);
+
+    try {
+        // Insert into employee_rating table
+        $insert_rating = "INSERT INTO employee_rating (employee_id, rated_by, punctuality, work_quality, productivity, teamwork, professionalism) 
+                          VALUES (?, ?, ?, ?, ?, ?, ?)";
+        $stmt = mysqli_prepare($conn, $insert_rating);
+        mysqli_stmt_bind_param($stmt, 'iiiiiii', $employee_id, $rated_by, $punctuality, $work_quality, $productivity, $teamwork, $professionalism);
+        
+        if (!mysqli_stmt_execute($stmt)) {
+            throw new Exception("Failed to insert rating: " . mysqli_error($conn));
+        }
+
+        // Update user_account table with new average rating
+        $update_user = "UPDATE user_account SET manager_rating = ? WHERE user_id = ?";
+        $stmt = mysqli_prepare($conn, $update_user);
+        mysqli_stmt_bind_param($stmt, 'di', $average_rating, $employee_id);
+        
+        if (!mysqli_stmt_execute($stmt)) {
+            throw new Exception("Failed to update user rating: " . mysqli_error($conn));
+        }
+
+        // Commit transaction
+        mysqli_commit($conn);
+        
+        $_SESSION['success_message'] = 'Rating saved successfully';
+        
+    } catch (Exception $e) {
+        // Rollback transaction on error
+        mysqli_rollback($conn);
+        $_SESSION['error_message'] = $e->getMessage();
+    }
+
+    // Close statement and connection
+    if (isset($stmt)) {
+        mysqli_stmt_close($stmt);
+    }
+
+    header("Location: " . $_SERVER['PHP_SELF']);
+    exit();
+}
 
 // Handle logout
 if (isset($_GET['logout'])) {
@@ -283,39 +362,49 @@ while ($row = mysqli_fetch_assoc($res)) {
                     <div class="dashboard-card">
                         <h5 class="fw-bold mb-3">Top-Rated Employees</h5>
                         <ol>
-                            <li>
-                                John Doe
-                                <span style="margin-left:8px; color: #ffb300;">
-                                    <span class="star">&#9733;</span>
-                                    <span class="star">&#9733;</span>
-                                    <span class="star">&#9733;</span>
-                                    <span class="star">&#9733;</span>
-                                    <span class="star">&#9733;</span>
-                                    5.0
-                                </span>
-                            </li>
-                            <li>
-                                Ryan Jeremy
-                                <span style="margin-left:8px; color: #ffb300;">
-                                    <span class="star">&#9733;</span>
-                                    <span class="star">&#9733;</span>
-                                    <span class="star">&#9733;</span>
-                                    <span class="star">&#9733;</span>
-                                    <span class="star">&#9733;</span>
-                                    5.0
-                                </span>
-                            </li>
-                            <li>
-                                Christine Mendoza
-                                <span style="margin-left:8px; color: #ffb300;">
-                                    <span class="star">&#9733;</span>
-                                    <span class="star">&#9733;</span>
-                                    <span class="star">&#9733;</span>
-                                    <span class="star">&#9733;</span>
-                                    <span class="star">&#9733;</span>
-                                    5.0
-                                </span>
-                            </li>
+                            <?php
+                            // Fetch top 3 rated employees
+                            $top_rated_query = "SELECT ua.full_name, ua.manager_rating 
+                                              FROM user_account ua 
+                                              WHERE ua.manager_rating IS NOT NULL 
+                                              ORDER BY ua.manager_rating DESC 
+                                              LIMIT 3";
+                            $top_rated_result = mysqli_query($conn, $top_rated_query);
+                            
+                            if ($top_rated_result && mysqli_num_rows($top_rated_result) > 0) {
+                                while ($employee = mysqli_fetch_assoc($top_rated_result)) {
+                                    $rating = round($employee['manager_rating'], 1);
+                                    $full_stars = floor($rating);
+                                    $has_half_star = ($rating - $full_stars) >= 0.5;
+                                    
+                                    echo '<li>';
+                                    echo htmlspecialchars($employee['full_name']);
+                                    echo '<span style="margin-left:8px; color: #ffb300;">';
+                                    
+                                    // Display full stars
+                                    for ($i = 0; $i < $full_stars; $i++) {
+                                        echo '<span class="star">&#9733;</span>';
+                                    }
+                                    
+                                    // Display half star if needed
+                                    if ($has_half_star) {
+                                        echo '<span class="star">&#9734;</span>';
+                                    }
+                                    
+                                    // Display empty stars
+                                    $empty_stars = 5 - $full_stars - ($has_half_star ? 1 : 0);
+                                    for ($i = 0; $i < $empty_stars; $i++) {
+                                        echo '<span class="star">&#9734;</span>';
+                                    }
+                                    
+                                    echo ' ' . number_format($rating, 1);
+                                    echo '</span>';
+                                    echo '</li>';
+                                }
+                            } else {
+                                echo '<li class="text-muted">No rated employees yet</li>';
+                            }
+                            ?>
                         </ol>
                     </div>
                 </div>
@@ -1021,7 +1110,7 @@ while ($row = mysqli_fetch_assoc($res)) {
 <div class="modal fade" id="rateModal" tabindex="-1" aria-labelledby="rateModalLabel" aria-hidden="true">
   <div class="modal-dialog">
     <div class="modal-content">
-      <form id="rateForm">
+      <form method="post" id="rateForm">
         <div class="modal-header">
           <h5 class="modal-title" id="rateModalLabel">Rate Employee</h5>
           <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
@@ -1090,7 +1179,7 @@ while ($row = mysqli_fetch_assoc($res)) {
         </div>
         <div class="modal-footer">
           <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-          <button type="submit" class="btn btn-primary">Save Rating</button>
+          <button type="submit" name="rate_employee" class="btn btn-primary">Save Rating</button>
         </div>
       </form>
     </div>
@@ -1272,24 +1361,6 @@ document.addEventListener('DOMContentLoaded', function() {
             var modal = new bootstrap.Modal(document.getElementById('rateModal'));
             modal.show();
         });
-    });
-
-    document.getElementById('rateForm').addEventListener('submit', function(e) {
-        e.preventDefault();
-        var formData = new FormData(this);
-        fetch('ajax/rate_employee.php', {
-            method: 'POST',
-            body: formData
-        })
-        .then(response => response.json())
-        .then(data => {
-            if (data.success) {
-                location.reload();
-            } else {
-                alert(data.error || 'Failed to save rating.');
-            }
-        })
-        .catch(() => alert('Failed to save rating.'));
     });
 
     function showStatusToast(message, isError = false) {
