@@ -3,7 +3,7 @@
 -- https://www.phpmyadmin.net/
 --
 -- Host: localhost
--- Generation Time: May 17, 2025 at 02:37 AM
+-- Generation Time: May 17, 2025 at 02:43 AM
 -- Server version: 10.4.28-MariaDB
 -- PHP Version: 8.2.4
 
@@ -289,7 +289,8 @@ INSERT INTO `activity_log` (`log_id`, `user_id`, `module`, `action`, `target_typ
 (241, 3, 'User Management', 'edit_user', 'user_account', 76, 'Old: {\"user_id\":\"76\",\"email\":\"employee3@gmail.com\",\"password\":\"$2y$10$P0A3zOla14TcPR4GGR9jjuM1mVO6doSwwhtiIW9uyZFURgBFabyWy\",\"full_name\":\"employee3@gmail.com\",\"role_id\":\"2\",\"created_at\":\"2025-05-16 07:51:25\",\"updated_at\":\"2025-05-16 07:51:25\",\"job_role_id\":\"26\",\"department_id\":\"2\",\"date_of_birth\":null,\"mobile_number\":null,\"gender\":null,\"civil_status\":null,\"address\":null,\"nationality\":null,\"manager_rating\":null,\"employment_type\":\"Full-Time\"}; New: {\"full_name\":\"Princess Alocillo\",\"email\":\"employee3@gmail.com\",\"role_id\":\"2\",\"department_id\":\"2\",\"job_role_id\":\"26\"}', '2025-05-17 00:26:46'),
 (242, 3, 'User Management', 'edit_user', 'user_account', 77, 'Old: {\"user_id\":\"77\",\"email\":\"qweq@gmail.com\",\"password\":\"$2y$10$lFSzrpUFKqQGd0k46GB5eeHzELhrU01IVuvGdc9.chwrOpO66x6D2\",\"full_name\":\"qweq\",\"role_id\":\"2\",\"created_at\":\"2025-05-16 08:13:32\",\"updated_at\":\"2025-05-16 08:13:32\",\"job_role_id\":\"30\",\"department_id\":\"4\",\"date_of_birth\":null,\"mobile_number\":null,\"gender\":null,\"civil_status\":null,\"address\":null,\"nationality\":null,\"manager_rating\":null,\"employment_type\":\"Full-Time\"}; New: {\"full_name\":\"Marie Dimagimba\",\"email\":\"mariemar@gmail.com\",\"role_id\":\"2\",\"department_id\":\"4\",\"job_role_id\":\"30\"}', '2025-05-17 00:27:06'),
 (243, 3, 'Admin', 'logout', 'user_account', 3, 'Admin logged out', '2025-05-17 00:27:42'),
-(244, 3, 'Admin', 'login', 'user_account', 3, 'User logged in: qwerty@gmail.com (qwerty@gmail.com)', '2025-05-17 00:31:35');
+(244, 3, 'Admin', 'login', 'user_account', 3, 'User logged in: qwerty@gmail.com (qwerty@gmail.com)', '2025-05-17 00:31:35'),
+(245, 3, 'Admin', 'logout', 'user_account', 3, 'Admin logged out', '2025-05-17 00:42:57');
 
 -- --------------------------------------------------------
 
@@ -826,7 +827,7 @@ CREATE TABLE `user_account` (
 --
 
 INSERT INTO `user_account` (`user_id`, `email`, `password`, `full_name`, `role_id`, `created_at`, `updated_at`, `job_role_id`, `department_id`, `date_of_birth`, `mobile_number`, `gender`, `civil_status`, `address`, `nationality`, `manager_rating`, `employment_type`) VALUES
-(3, 'qwerty@gmail.com', '$2y$10$3O0HBaPY0p4.1uewtOs5f.eSnb4r7DqEnKPiXkOcUVXZ1YCtqxYEe', 'qwerty@gmail.com', 1, '2025-05-08 08:58:34', '2025-05-16 00:13:43', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 'Full-Time'),
+(3, 'qwerty@gmail.com', '$2y$10$3O0HBaPY0p4.1uewtOs5f.eSnb4r7DqEnKPiXkOcUVXZ1YCtqxYEe', 'Admin', 1, '2025-05-08 08:58:34', '2025-05-16 00:13:43', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 'Full-Time'),
 (58, 'joshua@gmail.com', '$2y$10$ewPzERJIieCm8dejuKGKh.6kpgADhZFo4IMu.mut085rmzvFrmwlu', 'Joshua Garcia', 2, '2025-05-10 11:24:24', '2025-05-17 00:25:13', 22, 2, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 'Full-Time'),
 (62, 'mae@gmail.com', '$2y$10$Na1nqibdyCrCYOIik1dvT.bT6hBfalW0/VD6cm0rdKGGaT061JOZG', 'Mae Torres', 2, '2025-05-11 05:13:56', '2025-05-17 00:25:26', 22, 2, NULL, NULL, NULL, NULL, NULL, NULL, 4, 'Full-Time'),
 (64, 'johndoe@fake.com', '$2y$10$71eIlfiFEHCML5aBnv9cgu3HZjqlQ/CsWIjjPmuvV1jMzaUFDNThC', 'John Doe', 2, '2025-05-11 05:47:00', '2025-05-11 05:47:00', 15, 1, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 'Full-Time'),
@@ -980,7 +981,7 @@ ALTER TABLE `user_account`
 -- AUTO_INCREMENT for table `activity_log`
 --
 ALTER TABLE `activity_log`
-  MODIFY `log_id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=245;
+  MODIFY `log_id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=246;
 
 --
 -- AUTO_INCREMENT for table `admin_notice`
