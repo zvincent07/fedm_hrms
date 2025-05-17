@@ -412,8 +412,8 @@ while ($row = mysqli_fetch_assoc($res)) {
                     <div class="dashboard-card">
                         <h5 class="fw-bold mb-3">Quick Actions</h5>
                         <div class="quick-action">
-                            <a href="#" class="btn btn-outline-primary">Approve Attendance</a>
-                            <a href="#" class="btn btn-outline-success">Approve Leave</a>
+                            <a href="?page=attendance_requests" class="btn btn-outline-primary">Approve Attendance</a>
+                            <a href="?page=leave" class="btn btn-outline-success">Approve Leave</a>
                         </div>
                     </div>
                 </div>
@@ -1410,7 +1410,9 @@ document.addEventListener('DOMContentLoaded', function() {
         // Remove active class from all nav links
         navLinks.forEach(l => l.classList.remove('active'));
         
-        if (page === 'leave') {
+        if (page === 'attendance_requests') {
+            document.getElementById('attendanceRequestsPage').style.display = 'block';
+        } else if (page === 'leave') {
             document.getElementById('leaveListContainer').style.display = 'block';
             // Find and activate the Leave nav link
             const leaveNav = Array.from(document.querySelectorAll('.nav-mgr-link')).find(l => l.textContent.trim().includes('Leave'));
