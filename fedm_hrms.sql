@@ -3,7 +3,7 @@
 -- https://www.phpmyadmin.net/
 --
 -- Host: localhost
--- Generation Time: May 16, 2025 at 03:45 PM
+-- Generation Time: May 17, 2025 at 02:37 AM
 -- Server version: 10.4.28-MariaDB
 -- PHP Version: 8.2.4
 
@@ -275,7 +275,21 @@ INSERT INTO `activity_log` (`log_id`, `user_id`, `module`, `action`, `target_typ
 (227, 3, 'User Management', 'edit_user', 'user_account', 71, 'Old: {\"user_id\":\"71\",\"email\":\"manager@gmail.com\",\"password\":\"$2y$10$YlRlxh5ONMoMjN1r5PULRuI53kThQTWJXSOqDvO1hjIcRTlj0oJUu\",\"full_name\":\"Manager\",\"role_id\":\"3\",\"created_at\":\"2025-05-13 13:02:46\",\"updated_at\":\"2025-05-16 21:26:51\",\"job_role_id\":\"30\",\"department_id\":\"4\",\"date_of_birth\":null,\"mobile_number\":null,\"gender\":null,\"civil_status\":null,\"address\":null,\"nationality\":null,\"manager_rating\":null,\"employment_type\":\"Full-Time\"}; New: {\"full_name\":\"Manager\",\"email\":\"manager@gmail.com\",\"role_id\":\"3\",\"department_id\":\"4\",\"job_role_id\":\"30\"}', '2025-05-16 13:27:10'),
 (228, 3, 'User Management', 'change_user_password', 'user_account', 71, 'Changed password for user_id: 71', '2025-05-16 13:27:10'),
 (229, 3, 'User Management', 'create_account', 'user_account', 80, 'Created user: Jerome Padre (jerome@gmail.com)', '2025-05-16 13:27:52'),
-(230, 3, 'User Management', 'create_account', 'user_account', 81, 'Created user: Christine Mendoza (tin@gmail.com)', '2025-05-16 13:28:23');
+(230, 3, 'User Management', 'create_account', 'user_account', 81, 'Created user: Christine Mendoza (tin@gmail.com)', '2025-05-16 13:28:23'),
+(231, 3, 'Admin', 'login', 'user_account', 3, 'User logged in: qwerty@gmail.com (qwerty@gmail.com)', '2025-05-17 00:23:53'),
+(232, 3, 'User Management', 'edit_user', 'user_account', 70, 'Old: {\"user_id\":\"70\",\"email\":\"gly@gmail.com\",\"password\":\"$2y$10$\\/TD3TVTARpZOJMXXis0p2.BsqGVcit1dEsjfweVgeDpjgrjI30Q3C\",\"full_name\":\"Glycel Yvon Virtuci\",\"role_id\":\"2\",\"created_at\":\"2025-05-13 07:48:49\",\"updated_at\":\"2025-05-13 07:48:49\",\"job_role_id\":\"37\",\"department_id\":\"3\",\"date_of_birth\":\"2004-10-12\",\"mobile_number\":\"09933148234\",\"gender\":\"Female\",\"civil_status\":\"Single\",\"address\":\"zxdasdasd\",\"nationality\":\"Filipino\",\"manager_rating\":null,\"employment_type\":\"Full-Time\"}; New: {\"full_name\":\"Glycel Yvon Virtucio\",\"email\":\"gly@gmail.com\",\"role_id\":\"2\",\"department_id\":\"3\",\"job_role_id\":\"37\"}', '2025-05-17 00:24:25'),
+(233, 3, 'User Management', 'delete_user', 'user_account', 70, 'Deleted user_id: 70', '2025-05-17 00:24:40'),
+(234, 3, 'User Management', 'edit_user', 'user_account', 58, 'Old: {\"user_id\":\"58\",\"email\":\"asdadasd@gmai.com\",\"password\":\"$2y$10$ewPzERJIieCm8dejuKGKh.6kpgADhZFo4IMu.mut085rmzvFrmwlu\",\"full_name\":\"asdadasd@gmai.com\",\"role_id\":\"2\",\"created_at\":\"2025-05-10 19:24:24\",\"updated_at\":\"2025-05-10 19:24:24\",\"job_role_id\":\"22\",\"department_id\":\"2\",\"date_of_birth\":null,\"mobile_number\":null,\"gender\":null,\"civil_status\":null,\"address\":null,\"nationality\":null,\"manager_rating\":null,\"employment_type\":\"Full-Time\"}; New: {\"full_name\":\"Joshua Garcia\",\"email\":\"joshua@gmail.com\",\"role_id\":\"2\",\"department_id\":\"2\",\"job_role_id\":\"22\"}', '2025-05-17 00:25:13'),
+(235, 3, 'User Management', 'edit_user', 'user_account', 62, 'Old: {\"user_id\":\"62\",\"email\":\"adsdadas@gmail.com\",\"password\":\"$2y$10$Na1nqibdyCrCYOIik1dvT.bT6hBfalW0\\/VD6cm0rdKGGaT061JOZG\",\"full_name\":\"adsdadasadasdasasdfsdfsdfsdf\",\"role_id\":\"2\",\"created_at\":\"2025-05-11 13:13:56\",\"updated_at\":\"2025-05-11 13:42:46\",\"job_role_id\":\"22\",\"department_id\":\"2\",\"date_of_birth\":null,\"mobile_number\":null,\"gender\":null,\"civil_status\":null,\"address\":null,\"nationality\":null,\"manager_rating\":\"4\",\"employment_type\":\"Full-Time\"}; New: {\"full_name\":\"Mae Torres\",\"email\":\"mae@gmail.com\",\"role_id\":\"2\",\"department_id\":\"2\",\"job_role_id\":\"22\"}', '2025-05-17 00:25:26'),
+(236, 3, 'User Management', 'edit_user', 'user_account', 68, 'Old: {\"user_id\":\"68\",\"email\":\"asd@gmail.com\",\"password\":\"$2y$10$XAnzKuZNxGJNdwTZaFg7c.48AOLXBHMraVTjdwpo2z7P50CHL.ivS\",\"full_name\":\"asdf\",\"role_id\":\"2\",\"created_at\":\"2025-05-11 23:34:59\",\"updated_at\":\"2025-05-11 23:34:59\",\"job_role_id\":\"26\",\"department_id\":\"2\",\"date_of_birth\":null,\"mobile_number\":null,\"gender\":null,\"civil_status\":null,\"address\":null,\"nationality\":null,\"manager_rating\":null,\"employment_type\":\"Full-Time\"}; New: {\"full_name\":\"John Razec Agno\",\"email\":\"razec@gmail.com\",\"role_id\":\"2\",\"department_id\":\"2\",\"job_role_id\":\"26\"}', '2025-05-17 00:25:40'),
+(237, 3, 'User Management', 'edit_user', 'user_account', 69, 'Old: {\"user_id\":\"69\",\"email\":\"qewew@gmail.com\",\"password\":\"$2y$10$I01lU6FAADWXzw.jfl5NCenJ0kPDEMMclGRsGeZO4w2SGu\\/eM6xLi\",\"full_name\":\"qewew\",\"role_id\":\"2\",\"created_at\":\"2025-05-11 23:35:18\",\"updated_at\":\"2025-05-11 23:35:18\",\"job_role_id\":\"23\",\"department_id\":\"2\",\"date_of_birth\":\"2025-05-13\",\"mobile_number\":\"9923123123123\",\"gender\":\"Female\",\"civil_status\":\"Single\",\"address\":\"zxdasdasd\",\"nationality\":\"Filipino\",\"manager_rating\":null,\"employment_type\":null}; New: {\"full_name\":\"Carlos Yajie\",\"email\":\"carlos@gmail.com\",\"role_id\":\"2\",\"department_id\":\"2\",\"job_role_id\":\"23\"}', '2025-05-17 00:25:51'),
+(238, 3, 'User Management', 'edit_user', 'user_account', 73, 'Old: {\"user_id\":\"73\",\"email\":\"employee1@gmail.com\",\"password\":\"$2y$10$03YEf5xxeJXFEEe3leHtmO8jR.Y5V5C3hr8BC0Bj6PH3FhMamqeFm\",\"full_name\":\"employee1@gmail.com\",\"role_id\":\"2\",\"created_at\":\"2025-05-16 07:07:50\",\"updated_at\":\"2025-05-16 07:07:50\",\"job_role_id\":\"15\",\"department_id\":\"1\",\"date_of_birth\":null,\"mobile_number\":null,\"gender\":null,\"civil_status\":null,\"address\":null,\"nationality\":null,\"manager_rating\":null,\"employment_type\":\"Full-Time\"}; New: {\"full_name\":\"Kylla Paragas\",\"email\":\"employee1@gmail.com\",\"role_id\":\"2\",\"department_id\":\"1\",\"job_role_id\":\"15\"}', '2025-05-17 00:26:04'),
+(239, 3, 'User Management', 'edit_user', 'user_account', 74, 'Old: {\"user_id\":\"74\",\"email\":\"qwerty1@gmail.com\",\"password\":\"$2y$10$pzK8gIbJjxKknjrFvl8CG.s\\/9fxc5fyrkAu09FYJzBdawrHTZV9Hq\",\"full_name\":\"qwerty1@gmail.com\",\"role_id\":\"2\",\"created_at\":\"2025-05-16 07:39:08\",\"updated_at\":\"2025-05-16 07:39:08\",\"job_role_id\":\"26\",\"department_id\":\"2\",\"date_of_birth\":null,\"mobile_number\":null,\"gender\":null,\"civil_status\":null,\"address\":null,\"nationality\":null,\"manager_rating\":null,\"employment_type\":\"Full-Time\"}; New: {\"full_name\":\"Rick Macapagal\",\"email\":\"qwerty1@gmail.com\",\"role_id\":\"2\",\"department_id\":\"2\",\"job_role_id\":\"26\"}', '2025-05-17 00:26:12'),
+(240, 3, 'User Management', 'edit_user', 'user_account', 75, 'Old: {\"user_id\":\"75\",\"email\":\"employee2@gmail.com\",\"password\":\"$2y$10$03DgsidAPiWdV184J2w94.tSm8tovCmaBuZKmTZ8akUTQdXYNMLl.\",\"full_name\":\"employee2@gmail.com\",\"role_id\":\"2\",\"created_at\":\"2025-05-16 07:47:55\",\"updated_at\":\"2025-05-16 07:47:55\",\"job_role_id\":\"30\",\"department_id\":\"4\",\"date_of_birth\":null,\"mobile_number\":null,\"gender\":null,\"civil_status\":null,\"address\":null,\"nationality\":null,\"manager_rating\":null,\"employment_type\":\"Full-Time\"}; New: {\"full_name\":\"Daryl Jose\",\"email\":\"employee2@gmail.com\",\"role_id\":\"2\",\"department_id\":\"4\",\"job_role_id\":\"30\"}', '2025-05-17 00:26:34'),
+(241, 3, 'User Management', 'edit_user', 'user_account', 76, 'Old: {\"user_id\":\"76\",\"email\":\"employee3@gmail.com\",\"password\":\"$2y$10$P0A3zOla14TcPR4GGR9jjuM1mVO6doSwwhtiIW9uyZFURgBFabyWy\",\"full_name\":\"employee3@gmail.com\",\"role_id\":\"2\",\"created_at\":\"2025-05-16 07:51:25\",\"updated_at\":\"2025-05-16 07:51:25\",\"job_role_id\":\"26\",\"department_id\":\"2\",\"date_of_birth\":null,\"mobile_number\":null,\"gender\":null,\"civil_status\":null,\"address\":null,\"nationality\":null,\"manager_rating\":null,\"employment_type\":\"Full-Time\"}; New: {\"full_name\":\"Princess Alocillo\",\"email\":\"employee3@gmail.com\",\"role_id\":\"2\",\"department_id\":\"2\",\"job_role_id\":\"26\"}', '2025-05-17 00:26:46'),
+(242, 3, 'User Management', 'edit_user', 'user_account', 77, 'Old: {\"user_id\":\"77\",\"email\":\"qweq@gmail.com\",\"password\":\"$2y$10$lFSzrpUFKqQGd0k46GB5eeHzELhrU01IVuvGdc9.chwrOpO66x6D2\",\"full_name\":\"qweq\",\"role_id\":\"2\",\"created_at\":\"2025-05-16 08:13:32\",\"updated_at\":\"2025-05-16 08:13:32\",\"job_role_id\":\"30\",\"department_id\":\"4\",\"date_of_birth\":null,\"mobile_number\":null,\"gender\":null,\"civil_status\":null,\"address\":null,\"nationality\":null,\"manager_rating\":null,\"employment_type\":\"Full-Time\"}; New: {\"full_name\":\"Marie Dimagimba\",\"email\":\"mariemar@gmail.com\",\"role_id\":\"2\",\"department_id\":\"4\",\"job_role_id\":\"30\"}', '2025-05-17 00:27:06'),
+(243, 3, 'Admin', 'logout', 'user_account', 3, 'Admin logged out', '2025-05-17 00:27:42'),
+(244, 3, 'Admin', 'login', 'user_account', 3, 'User logged in: qwerty@gmail.com (qwerty@gmail.com)', '2025-05-17 00:31:35');
 
 -- --------------------------------------------------------
 
@@ -436,6 +450,13 @@ CREATE TABLE `employee_rating` (
   `created_at` timestamp NOT NULL DEFAULT current_timestamp()
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
+--
+-- Dumping data for table `employee_rating`
+--
+
+INSERT INTO `employee_rating` (`rating_id`, `employee_id`, `rated_by`, `punctuality`, `work_quality`, `productivity`, `teamwork`, `professionalism`, `created_at`) VALUES
+(1, 62, 71, 5, 5, 4, 5, 3, '2025-05-17 00:15:59');
+
 -- --------------------------------------------------------
 
 --
@@ -510,7 +531,7 @@ INSERT INTO `leave_application` (`id`, `employee_id`, `leave_type`, `start_date`
 (4, 59, 'Maternity Leave', '2025-05-23', '2025-05-24', 2, '2025-05-25', 'hkhjjk', NULL, 'approved', '2025-05-13 01:15:00'),
 (5, 70, 'Sick Leave', '2025-05-13', '2025-05-13', 1, '2025-05-14', 'zasas', NULL, 'approved', '2025-05-13 09:17:06'),
 (6, 76, 'Sick Leave', '2025-05-17', '2025-05-19', 3, '2025-05-20', 'sick', 'uploads/leave_handover/68268108059f8.pdf', 'approved', '2025-05-16 08:04:24'),
-(7, 75, 'Sick Leave', '2025-05-16', '2025-05-17', 2, '2025-05-18', '123', NULL, 'pending', '2025-05-16 19:57:48');
+(7, 75, 'Sick Leave', '2025-05-16', '2025-05-17', 2, '2025-05-18', '123', NULL, 'approved', '2025-05-16 19:57:48');
 
 -- --------------------------------------------------------
 
@@ -704,13 +725,6 @@ CREATE TABLE `resignation` (
   `process_remarks` text DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
---
--- Dumping data for table `resignation`
---
-
-INSERT INTO `resignation` (`resignation_id`, `employee_id`, `reason`, `comments`, `resignation_letter`, `status`, `submitted_at`, `processed_at`, `processed_by`, `process_remarks`) VALUES
-(19, 70, 'Career growth', 'huhu', NULL, 'rejected', '2025-05-13 02:45:39', NULL, NULL, NULL);
-
 -- --------------------------------------------------------
 
 --
@@ -757,10 +771,7 @@ CREATE TABLE `todos` (
 INSERT INTO `todos` (`todo_id`, `employee_id`, `task`, `status`, `due_date`, `created_at`, `updated_at`) VALUES
 (11, 69, 'dasda', 'pending', NULL, '2025-05-13 00:00:38', '2025-05-13 00:00:38'),
 (12, 69, 'dasd', 'pending', NULL, '2025-05-13 00:01:01', '2025-05-13 00:01:01'),
-(13, 69, 'dsda', 'pending', NULL, '2025-05-13 00:01:28', '2025-05-13 00:01:28'),
-(14, 70, 'ada', 'pending', NULL, '2025-05-13 01:15:02', '2025-05-13 01:15:02'),
-(15, 70, 'Hello po', 'pending', NULL, '2025-05-13 02:45:48', '2025-05-13 02:45:48'),
-(16, 70, 'Testing muna', 'pending', NULL, '2025-05-13 02:45:52', '2025-05-13 02:45:52');
+(13, 69, 'dsda', 'pending', NULL, '2025-05-13 00:01:28', '2025-05-13 00:01:28');
 
 -- --------------------------------------------------------
 
@@ -816,21 +827,20 @@ CREATE TABLE `user_account` (
 
 INSERT INTO `user_account` (`user_id`, `email`, `password`, `full_name`, `role_id`, `created_at`, `updated_at`, `job_role_id`, `department_id`, `date_of_birth`, `mobile_number`, `gender`, `civil_status`, `address`, `nationality`, `manager_rating`, `employment_type`) VALUES
 (3, 'qwerty@gmail.com', '$2y$10$3O0HBaPY0p4.1uewtOs5f.eSnb4r7DqEnKPiXkOcUVXZ1YCtqxYEe', 'qwerty@gmail.com', 1, '2025-05-08 08:58:34', '2025-05-16 00:13:43', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 'Full-Time'),
-(58, 'asdadasd@gmai.com', '$2y$10$ewPzERJIieCm8dejuKGKh.6kpgADhZFo4IMu.mut085rmzvFrmwlu', 'asdadasd@gmai.com', 2, '2025-05-10 11:24:24', '2025-05-10 11:24:24', 22, 2, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 'Full-Time'),
-(62, 'adsdadas@gmail.com', '$2y$10$Na1nqibdyCrCYOIik1dvT.bT6hBfalW0/VD6cm0rdKGGaT061JOZG', 'adsdadasadasdasasdfsdfsdfsdf', 2, '2025-05-11 05:13:56', '2025-05-11 05:42:46', 22, 2, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 'Full-Time'),
+(58, 'joshua@gmail.com', '$2y$10$ewPzERJIieCm8dejuKGKh.6kpgADhZFo4IMu.mut085rmzvFrmwlu', 'Joshua Garcia', 2, '2025-05-10 11:24:24', '2025-05-17 00:25:13', 22, 2, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 'Full-Time'),
+(62, 'mae@gmail.com', '$2y$10$Na1nqibdyCrCYOIik1dvT.bT6hBfalW0/VD6cm0rdKGGaT061JOZG', 'Mae Torres', 2, '2025-05-11 05:13:56', '2025-05-17 00:25:26', 22, 2, NULL, NULL, NULL, NULL, NULL, NULL, 4, 'Full-Time'),
 (64, 'johndoe@fake.com', '$2y$10$71eIlfiFEHCML5aBnv9cgu3HZjqlQ/CsWIjjPmuvV1jMzaUFDNThC', 'John Doe', 2, '2025-05-11 05:47:00', '2025-05-11 05:47:00', 15, 1, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 'Full-Time'),
 (65, 'janedoe@fake.com', '$2y$10$fhLG4o8enyzvdao.SCaFmur5RBn0UF6338WCFxRPIMSt/KYGLlALq', 'Jane Doe', 2, '2025-05-11 05:47:23', '2025-05-11 05:47:23', 22, 2, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 'Full-Time'),
 (66, 'bobjoe@fake.com', '$2y$10$vTkSaHKMJDZtsttsdgIBI.QXvCBBORyg0myr.dzSBI3jCFFJNBHbO', 'Bob Joe', 2, '2025-05-11 05:47:44', '2025-05-11 05:47:44', 34, 3, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 'Full-Time'),
-(68, 'asd@gmail.com', '$2y$10$XAnzKuZNxGJNdwTZaFg7c.48AOLXBHMraVTjdwpo2z7P50CHL.ivS', 'asdf', 2, '2025-05-11 15:34:59', '2025-05-11 15:34:59', 26, 2, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 'Full-Time'),
-(69, 'qewew@gmail.com', '$2y$10$I01lU6FAADWXzw.jfl5NCenJ0kPDEMMclGRsGeZO4w2SGu/eM6xLi', 'qewew', 2, '2025-05-11 15:35:18', '2025-05-11 15:35:18', 23, 2, '2025-05-13', '9923123123123', 'Female', 'Single', 'zxdasdasd', 'Filipino', NULL, NULL),
-(70, 'gly@gmail.com', '$2y$10$/TD3TVTARpZOJMXXis0p2.BsqGVcit1dEsjfweVgeDpjgrjI30Q3C', 'Glycel Yvon Virtuci', 2, '2025-05-12 23:48:49', '2025-05-12 23:48:49', 37, 3, '2004-10-12', '09933148234', 'Female', 'Single', 'zxdasdasd', 'Filipino', NULL, 'Full-Time'),
+(68, 'razec@gmail.com', '$2y$10$XAnzKuZNxGJNdwTZaFg7c.48AOLXBHMraVTjdwpo2z7P50CHL.ivS', 'John Razec Agno', 2, '2025-05-11 15:34:59', '2025-05-17 00:25:40', 26, 2, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 'Full-Time'),
+(69, 'carlos@gmail.com', '$2y$10$I01lU6FAADWXzw.jfl5NCenJ0kPDEMMclGRsGeZO4w2SGu/eM6xLi', 'Carlos Yajie', 2, '2025-05-11 15:35:18', '2025-05-17 00:25:51', 23, 2, '2025-05-13', '9923123123123', 'Female', 'Single', 'zxdasdasd', 'Filipino', NULL, NULL),
 (71, 'manager@gmail.com', '$2y$10$1z21CiG84Ofh2EXcleEfyuBwV3yGsjpvGQvGTXhlDRhiQzmeiWGrG', 'Manager', 3, '2025-05-13 05:02:46', '2025-05-16 13:27:10', 30, 4, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 'Full-Time'),
 (72, 'hr@gmail.com', '$2y$10$byfHTvSDIAID3vtCSDO.GuudolInUKoQkn55C1u/UmS95oaIxNZH6', 'Human Resource', 4, '2025-05-14 04:33:57', '2025-05-16 13:24:47', 22, 2, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 'Full-Time'),
-(73, 'employee1@gmail.com', '$2y$10$03YEf5xxeJXFEEe3leHtmO8jR.Y5V5C3hr8BC0Bj6PH3FhMamqeFm', 'employee1@gmail.com', 2, '2025-05-15 23:07:50', '2025-05-15 23:07:50', 15, 1, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 'Full-Time'),
-(74, 'qwerty1@gmail.com', '$2y$10$pzK8gIbJjxKknjrFvl8CG.s/9fxc5fyrkAu09FYJzBdawrHTZV9Hq', 'qwerty1@gmail.com', 2, '2025-05-15 23:39:08', '2025-05-15 23:39:08', 26, 2, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 'Full-Time'),
-(75, 'employee2@gmail.com', '$2y$10$03DgsidAPiWdV184J2w94.tSm8tovCmaBuZKmTZ8akUTQdXYNMLl.', 'employee2@gmail.com', 2, '2025-05-15 23:47:55', '2025-05-15 23:47:55', 30, 4, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 'Full-Time'),
-(76, 'employee3@gmail.com', '$2y$10$P0A3zOla14TcPR4GGR9jjuM1mVO6doSwwhtiIW9uyZFURgBFabyWy', 'employee3@gmail.com', 2, '2025-05-15 23:51:25', '2025-05-15 23:51:25', 26, 2, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 'Full-Time'),
-(77, 'qweq@gmail.com', '$2y$10$lFSzrpUFKqQGd0k46GB5eeHzELhrU01IVuvGdc9.chwrOpO66x6D2', 'qweq', 2, '2025-05-16 00:13:32', '2025-05-16 00:13:32', 30, 4, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 'Full-Time'),
+(73, 'employee1@gmail.com', '$2y$10$03YEf5xxeJXFEEe3leHtmO8jR.Y5V5C3hr8BC0Bj6PH3FhMamqeFm', 'Kylla Paragas', 2, '2025-05-15 23:07:50', '2025-05-17 00:26:04', 15, 1, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 'Full-Time'),
+(74, 'qwerty1@gmail.com', '$2y$10$pzK8gIbJjxKknjrFvl8CG.s/9fxc5fyrkAu09FYJzBdawrHTZV9Hq', 'Rick Macapagal', 2, '2025-05-15 23:39:08', '2025-05-17 00:26:12', 26, 2, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 'Full-Time'),
+(75, 'employee2@gmail.com', '$2y$10$03DgsidAPiWdV184J2w94.tSm8tovCmaBuZKmTZ8akUTQdXYNMLl.', 'Daryl Jose', 2, '2025-05-15 23:47:55', '2025-05-17 00:26:34', 30, 4, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 'Full-Time'),
+(76, 'employee3@gmail.com', '$2y$10$P0A3zOla14TcPR4GGR9jjuM1mVO6doSwwhtiIW9uyZFURgBFabyWy', 'Princess Alocillo', 2, '2025-05-15 23:51:25', '2025-05-17 00:26:46', 26, 2, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 'Full-Time'),
+(77, 'mariemar@gmail.com', '$2y$10$lFSzrpUFKqQGd0k46GB5eeHzELhrU01IVuvGdc9.chwrOpO66x6D2', 'Marie Dimagimba', 2, '2025-05-16 00:13:32', '2025-05-17 00:27:06', 30, 4, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 'Full-Time'),
 (78, 'glycel.virtucio@gmail.com', '$2y$10$RKSuDsET8DHDc8KUTnWgPenJYSTGlqyNtJGFlpka2VFBgTq6BQvFC', 'Glycel Yvon Virtucio', 2, '2025-05-16 13:21:20', '2025-05-16 13:21:20', 19, 1, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 'Full-Time'),
 (79, 'vincent@gmail.com', '$2y$10$g.ppQHSRQfevzym6Zh2cv.h84HqouYrWp0K4TyNyAmN7ifJbiGLDy', 'John vincent Laylo', 2, '2025-05-16 13:22:07', '2025-05-16 13:22:07', 33, 3, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 'Full-Time'),
 (80, 'jerome@gmail.com', '$2y$10$sZcnyf1KOl7uqeh7XY0bvu438aWrKK1mFyfbpje.DqrGORE6bzolW', 'Jerome Padre', 2, '2025-05-16 13:27:52', '2025-05-16 13:27:52', 35, 3, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 'Full-Time'),
@@ -970,7 +980,7 @@ ALTER TABLE `user_account`
 -- AUTO_INCREMENT for table `activity_log`
 --
 ALTER TABLE `activity_log`
-  MODIFY `log_id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=231;
+  MODIFY `log_id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=245;
 
 --
 -- AUTO_INCREMENT for table `admin_notice`
@@ -1006,7 +1016,7 @@ ALTER TABLE `department`
 -- AUTO_INCREMENT for table `employee_rating`
 --
 ALTER TABLE `employee_rating`
-  MODIFY `rating_id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT;
+  MODIFY `rating_id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=2;
 
 --
 -- AUTO_INCREMENT for table `job_role`
